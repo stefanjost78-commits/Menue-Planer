@@ -68,7 +68,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.3</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -82,7 +82,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.3';
+const VERSION = '1.4';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -235,6 +235,11 @@ const DEFAULT_RULES = [
   { id:'r9', course:'haupt', type:'freshDays', params:{ days:[2,3,4] } },
   { id:'r10', course:'haupt', type:'effortDays', params:{ effort:3, days:[3,4] } },
   { id:'r11', course:'suppe', type:'minGap', params:{ weeks:4 } },
+  { id:'r12', course:'suppe', type:'monthly', params:{ max:1 } },
+  { id:'r13', course:'suppe', type:'freshDays', params:{ days:[2,3,4] } },
+  { id:'r14', course:'vorspeise', type:'minGap', params:{ weeks:4 } },
+  { id:'r15', course:'vorspeise', type:'monthly', params:{ max:1 } },
+  { id:'r16', course:'vorspeise', type:'freshDays', params:{ days:[2,3,4] } },
 ];
 const RULE_LABELS = {
   catWeek: 'Kategorie pro Woche', monthly: 'Monatsgericht (⭐) max. …/Monat',
@@ -351,6 +356,9 @@ function catChip(id){ const c = cats.find(x=>x.id===id); if(!c) return ''; retur
 let form = { name:'', cats:[], monthly:false, fresh:false, effort:2 };
 let editId = null;
 function resetForm(){ form = { name:'', cats:[], monthly:false, fresh:false, effort:2 }; editId=null; }
+function syncName(){ const el = document.getElementById('dishName'); if(el) form.name = el.value; }
+function setFlag(key){ syncName(); form[key] = !form[key]; renderDishes(currentDishCourse()); }
+function setEffort(e){ syncName(); form.effort = e; renderDishes(currentDishCourse()); }
 function renderDishes(course){
   const list = dishes.filter(d=>d.course===course);
   const isEdit = editId!==null;
@@ -362,11 +370,11 @@ function renderDishes(course){
     <div class="hint">Kategorien (mehrfach möglich):</div>
     <div class="chiprow">${cats.map(c=>`<span class="chip ${form.cats.includes(c.id)?'on':''}" style="${form.cats.includes(c.id)?'background:'+c.color+';border-color:'+c.color:''}" onclick="toggleCat('${c.id}')">${c.icon} ${esc(c.label)}</span>`).join('')}</div>
     <div class="chiprow">
-      <span class="chip ${form.monthly?'on':''}" onclick="form.monthly=!form.monthly;renderDishes('${course}')">⭐ 1× pro Monat</span>
-      <span class="chip ${form.fresh?'on':''}" onclick="form.fresh=!form.fresh;renderDishes('${course}')">🐟 frische Lieferung</span>
+      <span class="chip ${form.monthly?'on':''}" onclick="setFlag('monthly')">⭐ 1× pro Monat</span>
+      <span class="chip ${form.fresh?'on':''}" onclick="setFlag('fresh')">🐟 frische Lieferung</span>
     </div>
     <div class="hint">Arbeitsaufwand:</div>
-    <div class="chiprow">${[1,2,3].map(e=>`<span class="chip ${form.effort===e?'on':''}" onclick="form.effort=${e};renderDishes('${course}')">${['','wenig','mittel','viel'][e]}</span>`).join('')}</div>
+    <div class="chiprow">${[1,2,3].map(e=>`<span class="chip ${form.effort===e?'on':''}" onclick="setEffort(${e})">${['','wenig','mittel','viel'][e]}</span>`).join('')}</div>
     <div class="actions">
       <button class="btn" onclick="saveDish('${course}')">${isEdit?'Änderungen speichern':'Speichern'}</button>
       ${isEdit?'<button class="btn secondary" onclick="resetForm();renderDishes(\''+course+'\')">Abbrechen</button>':''}
@@ -402,7 +410,7 @@ function renderDishes(course){
       </div>`).join('')}
   </div>`;
 }
-function toggleCat(id){ const i=form.cats.indexOf(id); if(i>=0) form.cats.splice(i,1); else form.cats.push(id); renderDishes(currentDishCourse()); }
+function toggleCat(id){ syncName(); const i=form.cats.indexOf(id); if(i>=0) form.cats.splice(i,1); else form.cats.push(id); renderDishes(currentDishCourse()); }
 function currentDishCourse(){ return ['suppe','vorspeise','haupt'].includes(tab)?tab:'haupt'; }
 function saveDish(course){
   form.name = document.getElementById('dishName').value.trim();
