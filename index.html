@@ -78,7 +78,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.5.0</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.5.1</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -93,7 +93,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.5.0';
+const VERSION = '1.5.1';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -372,7 +372,7 @@ const DEFAULT_RULES = [
   { id:'r8', course:'haupt', type:'minGap',   params:{ weeks:4 } },
   { id:'r9', course:'haupt', type:'freshDays', params:{ days:[2,3,4] } },
   { id:'r10', course:'haupt', type:'effortDays', params:{ effort:3, days:[3,4] } },
-  { id:'r22', course:'haupt', type:'monthlyMust', params:{ perWeek:1 } },
+  { id:'r22', course:'haupt', type:'monthlyMust', params:{ perWeek:2 } },
 ];
 // Gleiche Gemüse-Zutat im Namen erkennen (z. B. „Karottensuppe" ↔ „Paprika-Karotten-Suppe")
 function vegTokens(name){
@@ -427,6 +427,13 @@ function loadAll(){
     localStorage.setItem('mp_rules_150','1');
     saveAll();
   }
+  // v1.5.1: ⭐-Hauptgerichte dürfen 2× pro Woche (verteilt); Nudeln bleiben über Kategorie-Regel auf 1/Woche begrenzt
+  if(!localStorage.getItem('mp_rules_151')){
+    const r = rules.find(x=>x.id==='r22' && x.type==='monthlyMust');
+    if(r && (r.params.perWeek||1)===1) r.params.perWeek = 2;
+    localStorage.setItem('mp_rules_151','1');
+    saveAll();
+  }
   plan = load('mp_plan', null);
   planLang = load('mp_lang', 'de');
 }
@@ -464,6 +471,9 @@ function generatePlan(){
     if(cd.length===0) continue;
     const rc = rules.filter(r=>r.course===c);
     const lastUsed = {}, monthCount = {};
+    // ⭐-Gerichte gleichmäßig Zielwochen zuweisen (0–3, gestaffelt) statt zufällig – schöne Verteilung übers Monat
+    const starWeek = {};
+    cd.filter(d=>d.monthly).forEach((d,i)=> starWeek[d.id] = i%4);
     const placed = Array(N_WEEKS*5).fill(null);
     for(let w=0; w<N_WEEKS; w++){
       let placedInWeek = [];
@@ -474,7 +484,7 @@ function generatePlan(){
         if(rc.some(r=>r.type==='monthlyMust')){
           const m = Math.floor(w/4.34);
           const wkInMonth = Math.min(w - Math.floor(m*4.34), 3);
-          dueIds = new Set(cd.filter(d=>d.monthly && !((monthCount[d.id]||{})[m]) && wkInMonth >= Math.abs(d.id)%4).map(d=>d.id));
+          dueIds = new Set(cd.filter(d=>d.monthly && !((monthCount[d.id]||{})[m]) && wkInMonth >= (starWeek[d.id] ?? Math.abs(d.id)%4)).map(d=>d.id));
         }
         const candsAll = cd.filter(d=>{
           for(const r of rc){
@@ -520,7 +530,7 @@ function generatePlan(){
               const m = Math.floor(w/4.34);
               const usedThisMonth = (monthCount[d.id]||{})[m];
               if(!usedThisMonth){
-                const prefWeek = Math.abs(d.id) % 4;               // Zielwoche im Monat, verteilt die ⭐-Gerichte
+                const prefWeek = starWeek[d.id] ?? (Math.abs(d.id) % 4);       // Zielwoche im Monat, verteilt die ⭐-Gerichte
                 const wkInMonth = Math.min(w - Math.floor(m*4.34), 3);
                 s += wkInMonth >= prefWeek ? 8 : 2;                 // ab Zielwoche stark bevorzugt
               }
