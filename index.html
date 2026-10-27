@@ -73,7 +73,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.10</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.11</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -88,7 +88,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.10';
+const VERSION = '1.4.11';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -226,6 +226,118 @@ const STARTER_DISHES = [
   H('Choucroute garni mit Bratkartoffeln & Erbsen',['wurst','kartoffeln']),
   H('Pasteten (Paschtéitchen) mit Pommes & Salat',['wurst']),
 ].map((d,i)=>({ id:i+1, ...d }));
+// Luxemburgische Namen (aus Stefans Word-Menüplänen) – für die luxemburgische Plan-Ansicht
+const LB_NAMES = {
+  'Gemüsesuppe':'Geméiszopp','Tomatensuppe':'Tomatenzopp','Kürbissuppe':'Kürbiszopp','Lauchsuppe':'Porettenzopp',
+  'Blumenkohlsuppe':'Chouxfleurszopp','Brokkolisuppe':'Brokkolizopp','Selleriesuppe':'Zellerizopp','Kohlrabisuppe':'Kohlrabizopp',
+  'Karottensuppe':'Muertenzopp','Topinambursuppe':'Topinambourzopp','Kartoffelsuppe':'Gromperenzopp',
+  'Paprika-Karotten-Suppe':'Paprika-Muertenzopp','Erbsensuppe':'Iebessenzopp','Süßkartoffel-Karotten-Suppe':'Séissgromper-Muertzopp',
+  'Kürbis-Süßkartoffel-Suppe':'Kürbis-Séisgromperenzopp','Pastinakensuppe':'Pastinakenzopp','Spinatsuppe':'Spinatzopp',
+  'Bohnensuppe mit Kartoffeln':'Bounenzopp mat Gromper','Fenchelsuppe':'Fenchelzopp','Erbsen-Kartoffel-Suppe':'Iebessen-Gromperen-Zopp',
+  'Kürbis-Lauch-Suppe':'Kürbis-Porettenzopp','Karotten-Sellerie-Suppe':'Muerten-Zelleriezopp',
+  'Kartoffel-Kohlrabi-Suppe':'Gromperen-Kohlrabizopp','Butternut-Kürbissuppe':'Butternut-Kürbiszopp','Romanescosuppe':'Romanescozopp',
+  'Sellerie-Schwarzwurzel-Suppe':'Zellerie-Schwarz-Wuerzel-Zopp','Paprika-Tomaten-Suppe mit Frischkäse':'Paprika-Tomatenzopp mat Philadelphia',
+  'Lauch-Kartoffel-Suppe':'Poretten-Gromperenzopp','Zucchinisuppe':'Gourgettenzopp','Zucchini-Sellerie-Suppe':'Gourgetten-Zellerizopp',
+  'Zucchini-Karotten-Suppe':'Gourgetten-Muertenzopp',
+  'Rohkostteller':'Cruditéitenteller','Rote-Bete-Salat':'Rout Rommelszalot','Gefüllte Gurken':'Gefëllten Cornichoen',
+  'Mexikanischer Salat':'Mexikanesch Zalot','Tomate-Mozzarella':'Tomat-Mozzarella','Bohnensalat (Feierstengszalot)':'Feierstengszalot',
+  'Gemüsesticks mit Dip':'Geméis mat Dipp','Gefüllte Eier':'Gefëllten Eer','Tomatensalat':'Tomatenzalot',
+  'Griechischer Salat':'Grieschesch Zalot','Pizza-Schnecken':'Pizzaschnecken','Maiskörnersalat mit Ei':'Mauséiercherzalot mat gekachten Eër',
+  'Karotten-Sellerie-Salat mit Apfel':'Muerten-Zelleriezalot mat Apel','Linsensalat':'Lënsenzalot',
+  'Thunfisch-Reis-Salat':'Thon-Räiszalot','Rote-Linsen-Salat':'Rout Lënsenzalot','Salade Niçoise':'Salade Niçoise',
+  'Cracker mit Hummus':'Kräcker mat Humus','Avocado-Joghurt-Dip mit Gemüse':'Geméis mat Avocado-Joghurt-Dipp',
+  'Rote-Bete-Salat mit Feta & Kürbiskernen':'Rout Rommelszalot mat Feta a Kürbiskaeren','Bruschetta Italiana':'Bruschetta Italiana',
+  'Gemischter Salat':'Gemëschter Zalot','Frühlingsrollen':'Rouleau de Printemps','Toast mit Ziegenkäse & Honig':'Toast mat Geesekéis a Hunneg',
+  'Cracotte mit Thunfisch':'Cracotte mat Thon','Vitello Tonnato':'Vitello Tonato',
+  'Spaghetti Bolognese':'Spaghetti Bolognaise','Lasagne Bolognese':'Lasagne Bolognaise',
+  'Canneloni mit Fleischfüllung & Tomatensauce':'Canneloni mat Fleesch a Sauce Tomate',
+  'Spaghetti Pomodoro mit Käse & Oliven':'Spaghetti, Sauce Pomodoro mat gerapptem Kéis an Oliven',
+  'Ravioli Pomodoro mit Gurkensalat':'Ravioli à la Pomodoro mat Cornichongszalot',
+  'Dinkelnudeln mit Provence-Sauce & Karotten-Mais-Salat':'Dinkelnuddlen mat Sauce provençale an Muerten-Mais-Zalot',
+  'Dinkelnudeln mit Gemüse & Käsesauce':'Dinkelnuddelen mat gemëschtem Geméis a Kéiszooss',
+  'Spirelli Carbonara mit Gurkensalat & Feta':'Spirelli Carbonara a Kornichongszalot mat Feta',
+  'Tortellini mit Käsesauce & Cocktailtomaten':'Tortellini mat Kéiszoos a Cocktailtomaten',
+  'Tortellini mit Spinat & Käsesauce':'Tortellini mat Spinat a Kéiszoos',
+  'Rindsgeschnetzeltes mit Nudeln & Karotten':'Rëndsgeschnetzeltes mat Nuddelen a Muerten',
+  'Gemüsepfanne mit Hähnchen & chinesischen Nudeln':'Geméis-Paan mat Poulet a chinesesch Nuddelen',
+  'Putenbrust mit Spirelli, Erbsen & Karotten':'Dindebroscht mat Spirelli an Iebessen mat Muerten',
+  'Hähnchengeschnetzeltes mit Paprika, Zucchini & Couscous':'Pouletsgeschnetzeltes mat Paprika, Courgetten a Couscous',
+  'Hähnchengeschnetzeltes mit Couscous, Karotten & Erbsen':'Pouletgeschnëtzeltes, Couscous a Muerten-Ierbessen',
+  'Hähnchengeschnetzeltes mit Hirse & Romanesco':'Pouletgeschnëtzeltes mat Hirse a Romanesco',
+  'Hähnchen mit Reis & Bohnensalat':'Poulet mat Räis an Bounenzalot',
+  'Hähnchenfilet mit Gemüsesauce, Vollkornreis & Brokkoli':'Pouletsfilet mat Geméiszooss, Vollkarräis an Brokkoli',
+  'Hähnchen mit Kartoffeln & Karotten':'Poulet mat Gromperen an Muerten',
+  'Hähnchen mit Champignons, Pellkartoffeln & Gurkensalat':'Poulet mat Champignoen, gekachten Gromperen, Cornichongszalot',
+  'Hähnchenschnitzel mit Karotten & Vollkornreis':'Pouletsschnitzel mat Muerten a Vollkarräis',
+  'Hähnchenfilet mit Couscous & Brokkoli':'Filet vum Poulet, Couscous an Brokkoli',
+  'Bouché à la Reine mit Reis, Erbsen & Karotten':'Bouché à la Reine mat Räis an Iebessen mat Muerten',
+  'Putenschnitzel mit Dauphine-Kartoffeln & Karotten-Apfel-Salat':'Escalope de dinde mat Pommes Dauphines a Karotten-Apel-Zalot',
+  'Putengeschnetzeltes mit Brokkoli & Hirse':'Dindegeschnetzeltes mat Brokkoligeméis an Hirse',
+  'Chicken-Nuggets (hausgemacht) mit Kartoffelpüree, Erbsen & Karotten':'Chickennuggets Maison mat Gromperpurée, Iebessen a Muerten',
+  'Gebratener Reis mit Hähnchen & Gemüse':'Gebrodene Räis mat Poulet a Geméis',
+  'Lachs mit Kartoffeln & Gurkensalat':'Saumon mat Gromperen a Cornichongszalot',
+  'Lachs auf Zucchinibett mit Basmatireis':'Saumon um Zucchinibett a Basmatiräis',
+  'Lachs mit Couscous & Blumenkohl':'Saumon, Couscous a Chou-fleur',
+  'Lachs aus dem Ofen mit Vollkornreis & grünen Bohnen':'Saumon mat Vollkornräis a grénge Bounen',
+  'Lachs-Quiche mit Karotten-Sellerie-Salat':'Quiche mat Saumon an Muerten-Zellerie-Zalot',
+  'Lachs mit Kartoffelpüree & Fenchel':'Gebrodene Saumon mat Purée a Fenchel',
+  'Kabeljau aus dem Ofen mit Kürbis-Kartoffel-Püree':'Cabillaud am Schäffchen mat Kürbis-Gromper-Purée',
+  'Kabeljau mit Vollkornreis & Ratatouille':'Cabillaud mat Vollkornreis a Ratatouille',
+  'Kabeljau mit Blumenkohl & Ebly':'Kabeljau mat Chou-fleur an Ebly',
+  'Kabeljau mit Lauchgemüse, Hirse & Karotten-Sellerie-Salat':'Cabillaud mat Poretten, Hirse an Muerten-Zellerizalot',
+  'Kabeljau mit Couscous & Hokkaido-Creme':'Cabillaud mat Couscous an Hokkaidocrème',
+  'Kabeljau mit Ofengemüse & Kartoffelpüree':'Cabillaud mat Geméis am Schäffchen a Gromperepuree',
+  'Fisch mit Remoulade, Kartoffeln & grünem Salat':'Fësch mat Remoulade, Gromperen a grénger Zalot',
+  'Fisch in der Folie mit Gemüse & Bulgur':'Fësch an der Papillot mat Geméis a Bulgur',
+  'Fisch auf Gemüsebett mit Reis & Rote-Bete-Salat':'Fësch um Geméisbett mat Räis a roud Rommelszalot',
+  'Duo vom Fisch auf Gemüsebett mit Vollkornreis':'Duo vum Fësch um Geméisbett mat Vollkarräis',
+  'Fischstäbchen mit Dillsauce, Vollkornreis & Gurkensalat':'Fish-Sticks mat Dillszooss, Vollkarräis a Cornichongszalot',
+  'Fish & Chips mit Gurkensalat':'Fish & Chips mat Cornichongszalot',
+  'Fischbouletten mit Joghurt-Dip, Kürbis & Couscous':'Fëschbouletten mat Yoghurtdip, Kürbis a Couscous',
+  'Hamburger mit Pommes & grünem Salat':'Hamburger mat Fritten a grénger Zalot',
+  'Mini-Hamburger mit Pommes & Salat':'Mini-Hamburger mat Fritten an Zalot',
+  'Rindfleisch-Bouletten mit Spätzle & Blumenkohl':'Rëndsbouletten mat Spätzle a Chou-fleur',
+  'Bouletten mit Kartoffelpüree & Kürbis':'Bouletten mat Püree a Kürbis',
+  'Rindsbouletten mit Kartoffelpüree & Kürbisgemüse':'Rëndsbouletten mat Gromperpurée a Kürbisgeméis',
+  'Rindsgeschnetzeltes mit Karotten-Kohlrabi-Gemüse & Bulgur':'Rëndsgeschnetzeltes mat Muerten-Kohlrabigeméis a Bulgur',
+  'Rindsgeschnetzeltes mit Ratatouille & Reis':'Rëndsgeschnetzeltes mat Ratatouille a Räis',
+  'Rindsrouladen mit Rotkohl & Kartoffeln':'Rëndsrouladen mat roude Kabes an Gromperen',
+  'Kalbsrouladen mit Champignons, Bulgur & Brokkoli':'Kallefsrouladen mat Champignoen, Boulgour a Brokkoli',
+  'Kalbsrouladen mit Reis & Brokkoli':'Kallefsrouladen mat Räis a Brokkoli',
+  'Kalbsragout mit Champignons, Spätzle & Gurkensalat':'Kallefsragout mat Champignoen, Spätzle a Kornichongszalot',
+  'Kalbsschnitzel mit Pommes & Gurkensalat':'Kallefsschnitzel mat Fritten a Cornichongszalot',
+  'Kalbsgeschnetzeltes Zürcher Art mit Reis':'Kallefsgeschnetzeltes op Zürcher Art mat Räis',
+  'Kalbsfrikassee (Blanquette de veau) mit Reis, Erbsen & Karotten':'Blanquette de veau mat Räis, Iebessen a Muerten',
+  'Boeuf Bourguignon mit Pellkartoffeln':'Boeuf Bourguignon mat gekachten Gromperen',
+  'Gulasch mit Karotten & Spätzle':'Gulasch mat Muerten a Spätzle',
+  'Chili con Carne mit Vollkornreis & grünem Salat':'Chili con carne mat Vollkarräis a grénger Zalot',
+  'Shepherd\'s Pie mit Gurkensalat':'Shepherd\'s Pie mat Cornichongszalot',
+  'Gehacktespfanne mit Kürbis-Gratin & Reis':'Gehacktespan mat Kürbis-Gratin a Räis',
+  'Quesadilla mit Rind & Guacamole':'Quesadilla mat Rënd a Guacamole',
+  'Quesadilla mit Gemüse & Rind':'Quesadilla mat Geméis a Rënd',
+  'Pizza mit gemischtem Salat':'Pizza mat gemëschter Zalot',
+  'Dinkel-Pizza mit gemischtem Salat':'Dinkelpizza mat gemëschter Zalot',
+  'Omelette mit Käse, Brokkoli & Kartoffeln':'Omlette mat Kéis, Brokkoli a Gromperen',
+  'Kartoffelpuffer mit Apfel-Birnen-Kompott':'Gromperekichelcher mat Apel-Birekompott',
+  'Kniddelen (Kartoffelknödeln) mit Apfelmus':'Kniddelen mat Apelkompott',
+  'Kniddelen mit Speck & Apfelmus':'Kniddelen mat Speck an Äppelkompott',
+  'Pfannkuchen mit Apfelmus':'Pangescher mat Apelkompott',
+  'Kohlrabischnitzel mit Kräuterdip, Brokkoli & Kartoffelpüree':'Kohlrabischnitzel mat Kräiderdipp, Brokkoli a Gromperepuree',
+  'Vegetarischer Kartoffel-Gemüse-Gratin':'Vegetareschen Gromper-Geméis-Gratin mat gemëschter Zalot',
+  'Schupfnudel-Gratin':'Schupfnudelgratin',
+  'Gnocchi-Gemüsepfanne':'Gnocchi-Geméispaan',
+  'Gemüserisotto mit Cocktailtomaten & Parmesan':'Geméisrisotto mat Cocktailtomaten, Parmesan a grénger Zalot',
+  'Gefüllte Zucchini mit Bulgur & Rote-Bete-Salat mit Feta':'Gefëllten Gourgetten, Bulgur a Rout Rommelszalot mat Feta an Kürbiskären',
+  'Gefüllte Zucchini mit Reis & Blumenkohl':'Gefëllte Courgetten mat Räis a Chou-fleur',
+  'Wiener Würstchen mit Schupfnudeln & Brokkoli':'Wäinzoosiss mat Schupfnuddelen a Brokkoli',
+  'Wiener Würstchen mit Senf, Kartoffelpüree & Rotkohl':'Wäinzoossis mat Moschterzooss, Pürée a roude Kabes',
+  'Wiener Würstchen mit Bratkartoffeln & grünem Bohnensalat':'Wäinzoosiss mat gebrode Gromperen a grénger Bounenzalot',
+  'Würstchen mit Pellkartoffeln & gemischtem Salat':'Wurschtskonschtmati…',
+  'Würstchen mit Kartoffelpüree & Karotten':'Wiirchercher mat Gromperepuree a Muerten',
+  'Choucroute garni mit Bratkartoffeln & Erbsen':'Choucroûte garni mat gebrode Gromperen an Iebessen',
+  'Pasteten (Paschtéitchen) mit Pommes & Salat':'Paschtéitchen mat Fritten an Zalot'
+};
+LB_NAMES['Würstchen mit Pellkartoffeln & gemischtem Salat'] = 'Wërschtercher mat gekachte Gromperen a gemëschter Zalot';
 // Regeltypen: catWeek (Kategorie n× pro Woche), monthly (Monatsgericht max n×/Monat),
 // minGap (min. Abstand in Wochen), freshDays (frische Gerichte nur an Tagen X), effortDays (Aufwand n bevorzugt an Tagen X)
 const DEFAULT_RULES = [
@@ -389,10 +501,10 @@ function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;'
 function catChip(id){ const c = cats.find(x=>x.id===id); if(!c) return ''; return `<span class="tag" style="background:${c.color}1a;color:${c.color}">${c.icon} ${esc(c.label)}</span>`; }
 
 // ---------- Tab: Gerichte (Suppe / Vorspeise / Hauptgericht) ----------
-let form = { name:'', cats:[], monthly:false, fresh:false, effort:2 };
+let form = { name:'', nameLb:'', cats:[], monthly:false, fresh:false, effort:2 };
 let editId = null;
-function resetForm(){ form = { name:'', cats:[], monthly:false, fresh:false, effort:2 }; editId=null; }
-function syncName(){ const el = document.getElementById('dishName'); if(el) form.name = el.value; }
+function resetForm(){ form = { name:'', nameLb:'', cats:[], monthly:false, fresh:false, effort:2 }; editId=null; }
+function syncName(){ const el = document.getElementById('dishName'); if(el) form.name = el.value; const lb = document.getElementById('dishNameLb'); if(lb) form.nameLb = lb.value; }
 function setFlag(key){ syncName(); form[key] = !form[key]; renderDishes(currentDishCourse()); }
 function setEffort(e){ syncName(); form.effort = e; renderDishes(currentDishCourse()); }
 function renderDishes(course){
@@ -402,6 +514,7 @@ function renderDishes(course){
   <div class="card">
     <h2>${isEdit?'✏️ Hauptgericht bearbeiten':'➕ Neues '+(course==='haupt'?'Hauptgericht':COURSES[course])}</h2>
     <input type="text" id="dishName" placeholder="${COURSES[course]} sagen oder tippen …" value="${esc(form.name)}">
+    <input type="text" id="dishNameLb" placeholder="Name op Lëtzebuergesch (facultativ, fir de Plang)" value="${esc(form.nameLb||'')}">
     <button class="btn ${recording?'rec':''}" style="margin-bottom:10px" onclick="startSpeech('dishName',()=>renderDishes('${course}'))">${recording?'🔴 Aufnahme … tippen zum Stoppen':'🎤 Ansagen'}</button>
     <div class="hint">Kategorien (mehrfach möglich):</div>
     <div class="chiprow">${cats.map(c=>`<span class="chip ${form.cats.includes(c.id)?'on':''}" style="${form.cats.includes(c.id)?'background:'+c.color+';border-color:'+c.color:''}" onclick="toggleCat('${c.id}')">${c.icon} ${esc(c.label)}</span>`).join('')}</div>
@@ -451,11 +564,11 @@ function currentDishCourse(){ return ['suppe','vorspeise','haupt'].includes(tab)
 function saveDish(course){
   form.name = document.getElementById('dishName').value.trim();
   if(!form.name){ alert('Bitte einen Namen eingeben oder ansagen.'); return; }
-  if(editId!==null){ const d = dishes.find(x=>x.id===editId); Object.assign(d, { name:form.name, cats:[...form.cats], monthly:form.monthly, fresh:form.fresh, effort:form.effort }); }
-  else dishes.push({ id:Date.now(), course, name:form.name, cats:[...form.cats], monthly:form.monthly, fresh:form.fresh, effort:form.effort });
+  if(editId!==null){ const d = dishes.find(x=>x.id===editId); Object.assign(d, { name:form.name, nameLb:form.nameLb||'', cats:[...form.cats], monthly:form.monthly, fresh:form.fresh, effort:form.effort }); }
+  else dishes.push({ id:Date.now(), course, name:form.name, nameLb:form.nameLb||'', cats:[...form.cats], monthly:form.monthly, fresh:form.fresh, effort:form.effort });
   resetForm(); saveAll(); renderDishes(course);
 }
-function editDish(id){ const d = dishes.find(x=>x.id===id); editId=id; form={ name:d.name, cats:[...d.cats], monthly:d.monthly, fresh:d.fresh, effort:d.effort }; renderDishes(d.course); window.scrollTo({top:0,behavior:'smooth'}); }
+function editDish(id){ const d = dishes.find(x=>x.id===id); editId=id; form={ name:d.name, nameLb:d.nameLb||'', cats:[...d.cats], monthly:d.monthly, fresh:d.fresh, effort:d.effort }; renderDishes(d.course); window.scrollTo({top:0,behavior:'smooth'}); }
 function delDish(id){ const d=dishes.find(x=>x.id===id); if(confirm('„'+d.name+'" wirklich endgültig löschen?')){ dishes=dishes.filter(x=>x.id!==id); saveAll(); renderDishes(currentDishCourse()); } }
 // ---------- Tab: Nicht mehr (Archiv) ----------
 function archiveDish(id){
@@ -529,6 +642,10 @@ function delCat(i){ const c=cats[i]; const used=dishes.filter(d=>d.cats.includes
 
 // ---------- Tab: Plan ----------
 function getDish(course, w, day){ const pc = plan && plan.find(p=>p.course===course); return pc ? pc.days[w*5+day] : null; }
+function dishName(d){
+  if(planLang==='lb' && d){ const lb = d.nameLb || LB_NAMES[d.name]; if(lb) return lb; }
+  return d ? d.name : '—';
+}
 function renderPlan(){
   const dn = planLang==='lb'?DAYNAMES_LB:DAYNAMES;
   const dnShort = (i)=> dn[i].slice(0, planLang==='lb'?3:2);
@@ -555,9 +672,9 @@ function renderPlan(){
         return `<div class="daycard">
           <div class="dname">${dnShort(day)}</div>
           <div style="flex:1">
-            <div class="dline"><span class="dic">${ICONS.suppe}</span><span>${s?esc(s.name):'—'}${s&&s.monthly?' ⭐':''}</span></div>
-            <div class="dline"><span class="dic">${ICONS.vorspeise}</span><span>${v?esc(v.name):'—'}${v&&v.monthly?' ⭐':''}</span></div>
-            <div class="dline"><span class="dic">${ICONS.haupt}</span><span>${h?esc(h.name):'—'}${h&&h.monthly?' ⭐':''}</span></div>
+            <div class="dline"><span class="dic">${ICONS.suppe}</span><span>${s?esc(dishName(s)): '—'}${s&&s.monthly?' ⭐':''}</span></div>
+            <div class="dline"><span class="dic">${ICONS.vorspeise}</span><span>${v?esc(dishName(v)): '—'}${v&&v.monthly?' ⭐':''}</span></div>
+            <div class="dline"><span class="dic">${ICONS.haupt}</span><span>${h?esc(dishName(h)): '—'}${h&&h.monthly?' ⭐':''}</span></div>
           </div>
         </div>`;
       }).join('')}
