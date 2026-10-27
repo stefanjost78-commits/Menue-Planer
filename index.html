@@ -75,7 +75,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.14</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.15</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -90,7 +90,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.14';
+const VERSION = '1.4.15';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -676,10 +676,27 @@ function renderMonthly(){
         <button class="iconbtn" title="Löschen" onclick="delDish(${d.id})">🗑</button>
       </div>`;
   const byCourse = (c)=>mon.filter(d=>d.course===c);
+  // Max. mögliche ⭐-Gerichte pro Monat: ~21 Werktage minus fest verplante Wochentage (z. B. Freitags-Gemüsesuppe)
+  const monthMax = (c)=>{
+    const forced = new Set();
+    for(const r of rules) if(r.course===c && r.type==='dishDay' && Array.isArray(r.params.days)) r.params.days.forEach(x=>forced.add(x));
+    return Math.max(0, 21 - Math.round(forced.size*4.34));
+  };
+  const counterRow = ['suppe','vorspeise','haupt'].map(c=>{
+    const n = byCourse(c).length, max = monthMax(c);
+    const col = n>max ? '#c62828' : (n>=max-2 ? '#e65100' : '#2e7d32');
+    const ic = n>max ? '🚫' : (n>=max-2 ? '⚠️' : '✅');
+    return `<span class="tag" style="background:${col}1a;color:${col};font-size:.95rem;padding:6px 12px">${ic} ${COURSES[c]}e: ${n} / ${max}</span>`;
+  }).join(' ');
   app.innerHTML = `
   <div class="card">
     <h2>⭐ Einmal pro Monat (${mon.length})</h2>
     <div class="hint">Alle Suppen, Vorspeisen und Hauptgerichte mit dem ⭐-Kennzeichen auf einen Blick. Der Planer setzt sie automatisch ungefähr einmal pro Monat ein (Regel „Monatsgericht" im Regeln-Tab anpassbar). Verwaltet (⭐ setzen/entfernen) werden sie in ihren eigenen Listen.</div>
+  </div>
+  <div class="card">
+    <h3>📊 ⭐-Zähler (vorhanden / maximal möglich)</h3>
+    <div class="chiprow" style="flex-wrap:wrap;gap:6px">${counterRow}</div>
+    <div class="hint">Ein Monat hat rund 21 Werktage pro Ebene. Fest verplante Tage (z. B. Freitags-Gemüsesuppe) werden abgezogen. Bei ✅ ist entspannt, bei ⚠️ wird's eng, bei 🚫 passt nicht mehr jedes ⭐-Gericht in jeden Monat.</div>
   </div>
   ${['suppe','vorspeise','haupt'].map(c=>byCourse(c).length?`
   <div class="card"><h2>${COURSES[c]}e (${byCourse(c).length})</h2>${byCourse(c).map(row).join('')}</div>`:'').join('')}
