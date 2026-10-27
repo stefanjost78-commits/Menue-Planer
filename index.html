@@ -73,7 +73,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.7</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.8</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -88,7 +88,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.7';
+const VERSION = '1.4.8';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -262,6 +262,12 @@ function loadAll(){
   cats = load('mp_cats', DEFAULT_CATS);
   dishes = load('mp_dishes', STARTER_DISHES);
   rules = load('mp_rules', DEFAULT_RULES);
+  // Einmalige Übernahme der neuen Vorspeisen-Regeln (v1.4.7), falls noch alte Regeln gespeichert sind
+  if(!localStorage.getItem('mp_rules_147')){
+    for(const rid of ['r17','r18']) if(!rules.some(r=>r.id===rid)) rules.push(DEFAULT_RULES.find(x=>x.id===rid));
+    localStorage.setItem('mp_rules_147','1');
+    saveAll();
+  }
   plan = load('mp_plan', null);
   planLang = load('mp_lang', 'de');
 }
