@@ -57,6 +57,9 @@
   .catrow:last-child { border-bottom:none; }
   .catdot { width:14px; height:14px; border-radius:50%; flex:none; }
   .rule { background:#fafbfc; border:1px solid #eceff1; border-radius:8px; padding:9px 10px; margin-bottom:7px; font-size:.88rem; }
+  #warnbox { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px; }
+  #warnbox .card { max-width:500px; width:100%; max-height:80vh; overflow:auto; margin:0; }
+  #warnbox .witem { text-align:left; font-size:.9rem; padding:7px 0; border-bottom:1px solid #eceff1; }
   .rule .rtop { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:5px; }
   .rule .rlabel { font-weight:600; }
   .rule .params { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
@@ -75,7 +78,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.15</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.16</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -90,7 +93,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.15';
+const VERSION = '1.4.16';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -528,7 +531,57 @@ function generatePlan(){
     out.push({ course:c, days:placed });
   }
   plan = out;
+  const warnings = checkPlanConflicts(out, N_WEEKS);
   saveAll(); render();
+  if(warnings.length) showWarnings(warnings);
+}
+// Prüft den fertigen Plan auf Regeln, die sich nicht einhalten ließen
+function checkPlanConflicts(out, N_WEEKS){
+  const warnings = [];
+  for(const o of out){
+    const c = o.course, days = o.days;
+    const rc = rules.filter(r=>r.course===c);
+    // 1) Leere Tage: kein Gericht möglich
+    const empt = [];
+    days.forEach((d,i)=>{ if(!d) empt.push('Woche '+(Math.floor(i/5)+1)+', '+DAYNAMES[i%5]); });
+    if(empt.length) warnings.push(COURSES[c]+': kein Gericht möglich am '+empt.slice(0,8).join(', ')+(empt.length>8?' …':'')+' – zu wenige Gerichte oder Regeln zu streng.');
+    // 2) Festes Gericht an festen Tagen nicht eingehalten
+    for(const r of rc) if(r.type==='dishDay'){
+      let miss = 0;
+      (r.params.days||[]).forEach(day=>{ for(let w=0; w<N_WEEKS; w++){ const d = days[w*5+day]; if(!d || d.name!==r.params.name) miss++; } });
+      if(miss) warnings.push(COURSES[c]+': Festes Gericht „'+r.params.name+'" fehlt '+miss+'× – Gericht umbenannt, archiviert oder gelöscht?');
+    }
+    // 3) Pflicht-⭐ nicht in jedem Monat
+    if(rc.some(r=>r.type==='monthlyMust')){
+      const totalMonths = Math.floor((N_WEEKS-1)/4.34)+1;
+      for(const d of dishes.filter(x=>x.course===c && x.monthly && !x.archived)){
+        const found = new Set();
+        for(let w=0; w<N_WEEKS; w++) for(let day=0; day<5; day++){ const p = days[w*5+day]; if(p && p.id===d.id) found.add(Math.floor(w/4.34)); }
+        const miss = totalMonths - found.size;
+        if(miss>0) warnings.push(COURSES[c]+': ⭐ „'+d.name+'" fehlt in '+miss+' Monat('+(miss>1?'e':'')+') – zu viele ⭐-Gerichte oder Regeln zu streng.');
+      }
+    }
+    // 4) Kategorie-Mindestmenge pro Woche nicht erreicht
+    for(const r of rc) if(r.type==='catWeek' && r.params.min>0){
+      let miss = 0;
+      for(let w=0; w<N_WEEKS; w++){
+        let cnt = 0; for(let day=0; day<5; day++){ const d = days[w*5+day]; if(d && d.cats.includes(r.params.cat)) cnt++; }
+        if(cnt < r.params.min) miss++;
+      }
+      const cl = (cats.find(x=>x.id===r.params.cat)||{}).label || r.params.cat;
+      if(miss) warnings.push(COURSES[c]+': Kategorie „'+cl+'" fehlt in '+miss+' Woche(n) – evtl. zu wenige Gerichte dieser Kategorie.');
+    }
+  }
+  return warnings;
+}
+function showWarnings(warnings){
+  const old = document.getElementById('warnbox'); if(old) old.remove();
+  const b = document.createElement('div'); b.id = 'warnbox';
+  b.innerHTML = `<div class="card"><h2>⚠️ Hinweise zum Plan</h2>
+    <div class="hint">Der Plan wurde erstellt, aber folgende Regeln ließen sich nicht vollständig einhalten:</div>
+    ${warnings.map(w=>`<div class="witem">${esc(w)}</div>`).join('')}
+    <div class="actions"><button class="btn" onclick="document.getElementById('warnbox').remove()">Alles klar</button></div></div>`;
+  document.body.appendChild(b);
 }
 
 // ---------- UI-Gerüst ----------
@@ -846,19 +899,3 @@ function importBackup(input){
   } catch(e){ alert('Datei konnte nicht gelesen werden.'); } };
   rd.readAsText(f);
 }
-function resetAll(){ if(confirm('Wirklich ALLE Daten löschen und auf Standard zurücksetzen?')){ localStorage.removeItem('mp_cats'); localStorage.removeItem('mp_dishes'); localStorage.removeItem('mp_rules'); localStorage.removeItem('mp_plan'); loadAll(); render(); } }
-
-loadAll();
-render();
-</script>
-<script>
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('sw.js').then(reg=>{
-      reg.addEventListener('updatefound', ()=>{ const nw = reg.installing; if(nw) nw.addEventListener('statechange', ()=>{ if(nw.state==='installed' && navigator.serviceWorker.controller){ nw.postMessage({type:'SKIP_WAITING'}); } }); });
-    });
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(!refreshing){ refreshing = true; location.reload(); } });
-  }
-</script>
-</body>
-</html>
