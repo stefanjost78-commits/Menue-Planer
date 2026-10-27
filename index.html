@@ -73,7 +73,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.5</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.6</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -88,7 +88,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.5';
+const VERSION = '1.4.6';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -526,9 +526,9 @@ function renderPlan(){
         return `<div class="daycard">
           <div class="dname">${dnShort(day)}</div>
           <div style="flex:1">
-            <div class="dline"><span class="dic">${ICONS.suppe}</span><span>${s?esc(s.name):'—'}</span></div>
-            <div class="dline"><span class="dic">${ICONS.vorspeise}</span><span>${v?esc(v.name):'—'}</span></div>
-            <div class="dline"><span class="dic">${ICONS.haupt}</span><span>${h?esc(h.name):'—'}</span></div>
+            <div class="dline"><span class="dic">${ICONS.suppe}</span><span>${s?esc(s.name):'—'}${s&&s.monthly?' ⭐':''}</span></div>
+            <div class="dline"><span class="dic">${ICONS.vorspeise}</span><span>${v?esc(v.name):'—'}${v&&v.monthly?' ⭐':''}</span></div>
+            <div class="dline"><span class="dic">${ICONS.haupt}</span><span>${h?esc(h.name):'—'}${h&&h.monthly?' ⭐':''}</span></div>
           </div>
         </div>`;
       }).join('')}
