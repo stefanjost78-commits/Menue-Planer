@@ -68,7 +68,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.1</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -82,7 +82,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4';
+const VERSION = '1.4.1';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -587,8 +587,18 @@ loadAll();
 render();
 </script>
 <script>
-if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
-{ const v=document.getElementById("ver"); if(v) v.textContent="v"+VERSION; }
+(function(){
+  if(!('serviceWorker' in navigator)) return;
+  { const v=document.getElementById('ver'); if(v) v.textContent='v'+VERSION; }
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(refreshing) return; refreshing = true; location.reload(); });
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    reg.addEventListener('updatefound', ()=>{
+      const nw = reg.installing;
+      if(nw) nw.addEventListener('statechange', ()=>{ if(nw.state==='installed' && navigator.serviceWorker.controller) nw.postMessage('SKIP_WAITING'); });
+    });
+  }).catch(()=>{});
+})();
 </script>
 </body>
 </html>
