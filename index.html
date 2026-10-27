@@ -73,7 +73,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.8</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.9</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -88,7 +88,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.8';
+const VERSION = '1.4.9';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -334,7 +334,18 @@ function generatePlan(){
           let s = 0;
           for(const r of rc){ if(r.type==='effortDays' && d.effort===r.params.effort && r.params.days.includes(day)) s += 2;
             if(r.type==='effortDays' && d.effort===r.params.effort && !r.params.days.includes(day)) s -= 2; }
-          if(d.monthly) s += 1;
+          if(d.monthly){
+            const mr = rc.find(r=>r.type==='monthly');
+            if(mr){
+              const m = Math.floor(w/4.34);
+              const usedThisMonth = (monthCount[d.id]||{})[m];
+              if(!usedThisMonth){
+                const prefWeek = Math.abs(d.id) % 4;               // Zielwoche im Monat, verteilt die ⭐-Gerichte
+                const wkInMonth = Math.min(w - Math.floor(m*4.34), 3);
+                s += wkInMonth >= prefWeek ? 8 : 2;                 // ab Zielwoche stark bevorzugt
+              }
+            } else s += 1;
+          }
           s -= Math.min((lastUsed[d.id]===undefined?999:(idx-lastUsed[d.id]))/7, 6)/6;
           return { d, s };
         }).sort((a,b)=>b.s-a.s);
