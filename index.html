@@ -78,7 +78,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.17</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.5.0</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -93,7 +93,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.17';
+const VERSION = '1.5.0';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -347,6 +347,20 @@ LB_NAMES['Würstchen mit Pellkartoffeln & gemischtem Salat'] = 'Wërschtercher m
 // minGap (min. Abstand in Wochen), freshDays (frische Gerichte nur an Tagen X), effortDays (Aufwand n bevorzugt an Tagen X),
 // dishDay (festes Gericht an festen Wochentagen)
 const DEFAULT_RULES = [
+  // ---- Suppen: ⭐-Lieblingssuppen jeden Monat garantiert & verteilt, Rest füllt auf ----
+  { id:'r11', course:'suppe', type:'minGap',   params:{ weeks:3 } },
+  { id:'r12', course:'suppe', type:'monthly',  params:{ max:2 } },
+  { id:'r13', course:'suppe', type:'freshDays', params:{ days:[2,3,4] } },
+  { id:'r19', course:'suppe', type:'dishDay',  params:{ name:'Gemüsesuppe', days:[4] } },
+  { id:'r20', course:'suppe', type:'monthlyMust', params:{ perWeek:1 } },
+  { id:'r21', course:'suppe', type:'sameVegWeek', params:{ max:1 } },
+  // ---- Vorspeisen ----
+  { id:'r14', course:'vorspeise', type:'minGap', params:{ weeks:4 } },
+  { id:'r15', course:'vorspeise', type:'monthly', params:{ max:1 } },
+  { id:'r16', course:'vorspeise', type:'freshDays', params:{ days:[2,3,4] } },
+  { id:'r17', course:'vorspeise', type:'perWeek', params:{ max:2 } },
+  { id:'r18', course:'vorspeise', type:'courseDepEffort', params:{ course:'haupt', effortMax:2 } },
+  // ---- Hauptgerichte: ⭐-Gerichte jeden Monat garantiert & verteilt ----
   { id:'r1', course:'haupt', type:'catWeek',  params:{ cat:'nudeln', min:1, max:1 } },
   { id:'r2', course:'haupt', type:'catWeek',  params:{ cat:'rind', min:1, max:1 } },
   { id:'r3', course:'haupt', type:'catWeek',  params:{ cat:'huhn', min:1, max:1 } },
@@ -358,17 +372,7 @@ const DEFAULT_RULES = [
   { id:'r8', course:'haupt', type:'minGap',   params:{ weeks:4 } },
   { id:'r9', course:'haupt', type:'freshDays', params:{ days:[2,3,4] } },
   { id:'r10', course:'haupt', type:'effortDays', params:{ effort:3, days:[3,4] } },
-  { id:'r11', course:'suppe', type:'minGap', params:{ weeks:4 } },
-  { id:'r12', course:'suppe', type:'monthly', params:{ max:1 } },
-  { id:'r13', course:'suppe', type:'freshDays', params:{ days:[2,3,4] } },
-  { id:'r14', course:'vorspeise', type:'minGap', params:{ weeks:4 } },
-  { id:'r15', course:'vorspeise', type:'monthly', params:{ max:1 } },
-  { id:'r16', course:'vorspeise', type:'freshDays', params:{ days:[2,3,4] } },
-  { id:'r17', course:'vorspeise', type:'perWeek', params:{ max:2 } },
-  { id:'r18', course:'vorspeise', type:'courseDepEffort', params:{ course:'haupt', effortMax:2 } },
-  { id:'r19', course:'suppe', type:'dishDay', params:{ name:'Gemüsesuppe', days:[4] } },
-  { id:'r20', course:'suppe', type:'monthlyMust', params:{} },
-  { id:'r21', course:'suppe', type:'sameVegWeek', params:{ max:1 } },
+  { id:'r22', course:'haupt', type:'monthlyMust', params:{ perWeek:1 } },
 ];
 // Gleiche Gemüse-Zutat im Namen erkennen (z. B. „Karottensuppe" ↔ „Paprika-Karotten-Suppe")
 function vegTokens(name){
@@ -385,7 +389,7 @@ const RULE_LABELS = {
   minGap: 'Mindestabstand gleiche Gerichte (Wochen)', freshDays: 'Frische Gerichte (🐟) nur an Tagen', effortDays: 'Aufwendige Gerichte bevorzugt an Tagen',
   perWeek: 'Max. Gerichte pro Woche', courseDepEffort: 'Nur an Tagen mit einfachem Hauptgericht',
   dishDay: 'Festes Gericht an Wochentagen',
-  monthlyMust: '⭐-Gerichte: jedes mind. 1× pro Monat (Pflicht)',
+  monthlyMust: '⭐-Gerichte: jedes 1× pro Monat, max. … pro Woche (Pflicht)',
   sameVegWeek: 'Gleiches Gemüse (im Namen): max. …× pro Woche'
 };
 
@@ -417,12 +421,11 @@ function loadAll(){
     localStorage.setItem('mp_rules_1413','1');
     if(added) saveAll();
   }
-  // v1.4.14: Regel „gleiches Gemüse nur 1× pro Woche" (r21) einmalig ergänzen
-  if(!localStorage.getItem('mp_rules_1414')){
-    let added = false;
-    for(const dr of DEFAULT_RULES) if(!rules.some(r=>r.id===dr.id)){ rules.push(dr); added = true; }
-    localStorage.setItem('mp_rules_1414','1');
-    if(added) saveAll();
+  // v1.5.0: Regeln einmalig auf das neue, aufgeräumte Regelwerk zurücksetzen (nach Stefans Anweisungen)
+  if(!localStorage.getItem('mp_rules_150')){
+    rules = DEFAULT_RULES.map(r=>({ ...r, params:{ ...r.params } }));
+    localStorage.setItem('mp_rules_150','1');
+    saveAll();
   }
   plan = load('mp_plan', null);
   planLang = load('mp_lang', 'de');
@@ -481,6 +484,8 @@ function generatePlan(){
               if(used >= p.max) return false;
             }
             if(r.type==='freshDays' && d.fresh && !p.days.includes(day)) return false;
+            // Pflicht-⭐: nur begrenzt pro Woche (schöne Verteilung übers Monat)
+            if(r.type==='monthlyMust' && d.monthly && placedInWeek.filter(x=>x && x.d.monthly).length >= (r.params.perWeek||1)) return false;
             if(r.type==='perWeek' && placedInWeek.length >= p.max) return false;
             if(r.type==='sameVegWeek' && placedInWeek.some(x=>x && sharesVeg(x.d.name, d.name)) && placedInWeek.filter(x=>x && sharesVeg(x.d.name, d.name)).length >= p.max) return false;
             if(r.type==='courseDepEffort'){ const dep = (allPlaced[p.course]||[])[idx]; if(dep && dep.effort > p.effortMax) return false; }
@@ -848,6 +853,7 @@ function ruleRow(r){
   else if(r.type==='effortDays') params = `<label>Aufwand</label><select onchange="updRuleNum('${r.id}','effort',this.value)"><option value="1" ${p.effort==1?'selected':''}>wenig</option><option value="2" ${p.effort==2?'selected':''}>mittel</option><option value="3" ${p.effort==3?'selected':''}>viel</option></select>
     <label>Tage:</label>${weekdaysPicker('wd-'+r.id, p.days)} <button class="btn secondary small" onclick="readDays('${r.id}','effortDays')">OK</button>`;
   else if(r.type==='perWeek') params = `<label>max. pro Woche</label><input type="number" value="${p.max}" onchange="updRuleNum('${r.id}','max',this.value)">`;
+  else if(r.type==='monthlyMust') params = `<label>max. ⭐ pro Woche</label><input type="number" value="${p.perWeek||1}" onchange="updRuleNum('${r.id}','perWeek',this.value)">`;
   else if(r.type==='sameVegWeek') params = `<label>max. pro Woche</label><input type="number" value="${p.max}" onchange="updRuleNum('${r.id}','max',this.value)">`;
   else if(r.type==='courseDepEffort') params = `<label>Nur wenn</label><select onchange="updRule('${r.id}','course',this.value)">${Object.keys(COURSES).map(k=>`<option value="${k}" ${p.course===k?'selected':''}>${COURSES[k]}</option>`).join('')}</select>
     <label>Aufwand max.</label><select onchange="updRuleNum('${r.id}','effortMax',this.value)"><option value="1" ${p.effortMax==1?'selected':''}>wenig</option><option value="2" ${p.effortMax==2?'selected':''}>mittel</option></select>`;
@@ -870,7 +876,7 @@ function addRule(course){
   else if(type==='perWeek') base.params={ max:2 };
   else if(type==='courseDepEffort') base.params={ course:'haupt', effortMax:2 };
   else if(type==='dishDay') base.params={ name:(dishes.filter(x=>x.course===course && !x.archived)[0]||{}).name||'', days:[4] };
-  else if(type==='monthlyMust') base.params={};
+  else if(type==='monthlyMust') base.params={ perWeek:1 };
   else if(type==='sameVegWeek') base.params={ max:1 };
   rules.push(base); saveAll(); renderRules();
 }
