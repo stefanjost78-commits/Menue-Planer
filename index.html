@@ -73,7 +73,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.9</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.10</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -88,7 +88,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.9';
+const VERSION = '1.4.10';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -262,11 +262,12 @@ function loadAll(){
   cats = load('mp_cats', DEFAULT_CATS);
   dishes = load('mp_dishes', STARTER_DISHES);
   rules = load('mp_rules', DEFAULT_RULES);
-  // Einmalige Übernahme der neuen Vorspeisen-Regeln (v1.4.7), falls noch alte Regeln gespeichert sind
-  if(!localStorage.getItem('mp_rules_147')){
-    for(const rid of ['r17','r18']) if(!rules.some(r=>r.id===rid)) rules.push(DEFAULT_RULES.find(x=>x.id===rid));
-    localStorage.setItem('mp_rules_147','1');
-    saveAll();
+  // Einmalige Übernahme fehlender Standard-Regeln (z. B. Vorspeisen-Regeln ab v1.4.1), falls alte Regeln gespeichert sind
+  if(!localStorage.getItem('mp_rules_149')){
+    let added = false;
+    for(const dr of DEFAULT_RULES) if(!rules.some(r=>r.id===dr.id)){ rules.push(dr); added = true; }
+    localStorage.setItem('mp_rules_149','1');
+    if(added) saveAll();
   }
   plan = load('mp_plan', null);
   planLang = load('mp_lang', 'de');
@@ -334,6 +335,8 @@ function generatePlan(){
           let s = 0;
           for(const r of rc){ if(r.type==='effortDays' && d.effort===r.params.effort && r.params.days.includes(day)) s += 2;
             if(r.type==='effortDays' && d.effort===r.params.effort && !r.params.days.includes(day)) s -= 2; }
+          if(placedInWeek.some(p=>p.d.id===d.id)) s -= 5;               // nicht zweimal in derselben Woche
+          s += Math.min((lastUsed[d.id]===undefined?999:(idx-lastUsed[d.id]))/7, 6)/6;  // lange nicht verwendet = besser
           if(d.monthly){
             const mr = rc.find(r=>r.type==='monthly');
             if(mr){
@@ -346,7 +349,7 @@ function generatePlan(){
               }
             } else s += 1;
           }
-          s -= Math.min((lastUsed[d.id]===undefined?999:(idx-lastUsed[d.id]))/7, 6)/6;
+          s += ((Math.abs(d.id)*31 + w*17 + day*7) % 100)/1000;          // kleine Streuung, damit Tage/Gerichte variieren
           return { d, s };
         }).sort((a,b)=>b.s-a.s);
         const best = scored[0];
