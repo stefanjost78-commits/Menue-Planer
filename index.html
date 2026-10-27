@@ -73,7 +73,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.6</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.7</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -88,7 +88,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.6';
+const VERSION = '1.4.7';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -246,10 +246,13 @@ const DEFAULT_RULES = [
   { id:'r14', course:'vorspeise', type:'minGap', params:{ weeks:4 } },
   { id:'r15', course:'vorspeise', type:'monthly', params:{ max:1 } },
   { id:'r16', course:'vorspeise', type:'freshDays', params:{ days:[2,3,4] } },
+  { id:'r17', course:'vorspeise', type:'perWeek', params:{ max:2 } },
+  { id:'r18', course:'vorspeise', type:'courseDepEffort', params:{ course:'haupt', effortMax:2 } },
 ];
 const RULE_LABELS = {
   catWeek: 'Kategorie pro Woche', monthly: 'Monatsgericht (⭐) max. …/Monat',
-  minGap: 'Mindestabstand gleiche Gerichte (Wochen)', freshDays: 'Frische Gerichte (🐟) nur an Tagen', effortDays: 'Aufwendige Gerichte bevorzugt an Tagen'
+  minGap: 'Mindestabstand gleiche Gerichte (Wochen)', freshDays: 'Frische Gerichte (🐟) nur an Tagen', effortDays: 'Aufwendige Gerichte bevorzugt an Tagen',
+  perWeek: 'Max. Gerichte pro Woche', courseDepEffort: 'Nur an Tagen mit einfachem Hauptgericht'
 };
 
 // ---------- Laden / Speichern ----------
@@ -288,7 +291,10 @@ function startSpeech(targetId, cb){
 function generatePlan(){
   const out = [];
   const N_WEEKS = 13;
-  for(const c of Object.keys(COURSES)){
+  const allPlaced = {};
+  // Hauptgericht zuerst planen, damit Vorspeisen-Regeln den Aufwand des Tages kennen
+  const PLANNER_ORDER = ['suppe','haupt','vorspeise'];
+  for(const c of PLANNER_ORDER){
     const cd = dishes.filter(d=>d.course===c && !d.archived);
     if(cd.length===0) continue;
     const rc = rules.filter(r=>r.course===c);
@@ -306,6 +312,8 @@ function generatePlan(){
               if(used >= p.max) return false;
             }
             if(r.type==='freshDays' && d.fresh && !p.days.includes(day)) return false;
+            if(r.type==='perWeek' && placedInWeek.length >= p.max) return false;
+            if(r.type==='courseDepEffort'){ const dep = (allPlaced[p.course]||[])[idx]; if(dep && dep.effort > p.effortMax) return false; }
             if(r.type==='monthly' && d.monthly){
               const m = Math.floor(w/4.34);
               monthCount[d.id] = monthCount[d.id]||{};
@@ -330,6 +338,7 @@ function generatePlan(){
       }
       for(const pe of placedInWeek) placed[w*5+pe.day] = pe.d;
     }
+    allPlaced[c] = placed;
     out.push({ course:c, days:placed });
   }
   plan = out;
@@ -566,6 +575,9 @@ function ruleRow(r){
   else if(r.type==='freshDays') params = `<label>Tage (Mo–Fr):</label>${weekdaysPicker('wd-'+r.id, p.days)} <button class="btn secondary small" onclick="readDays('${r.id}','freshDays')">OK</button>`;
   else if(r.type==='effortDays') params = `<label>Aufwand</label><select onchange="updRuleNum('${r.id}','effort',this.value)"><option value="1" ${p.effort==1?'selected':''}>wenig</option><option value="2" ${p.effort==2?'selected':''}>mittel</option><option value="3" ${p.effort==3?'selected':''}>viel</option></select>
     <label>Tage:</label>${weekdaysPicker('wd-'+r.id, p.days)} <button class="btn secondary small" onclick="readDays('${r.id}','effortDays')">OK</button>`;
+  else if(r.type==='perWeek') params = `<label>max. pro Woche</label><input type="number" value="${p.max}" onchange="updRuleNum('${r.id}','max',this.value)">`;
+  else if(r.type==='courseDepEffort') params = `<label>Nur wenn</label><select onchange="updRule('${r.id}','course',this.value)">${Object.keys(COURSES).map(k=>`<option value="${k}" ${p.course===k?'selected':''}>${COURSES[k]}</option>`).join('')}</select>
+    <label>Aufwand max.</label><select onchange="updRuleNum('${r.id}','effortMax',this.value)"><option value="1" ${p.effortMax==1?'selected':''}>wenig</option><option value="2" ${p.effortMax==2?'selected':''}>mittel</option></select>`;
   return `<div class="rule"><div class="rtop"><span class="rlabel">${RULE_LABELS[r.type]}</span>
     <button class="iconbtn" title="Löschen" onclick="delRule('${r.id}')">🗑</button></div><div class="params">${params}</div></div>`;
 }
@@ -580,6 +592,8 @@ function addRule(course){
   else if(type==='minGap') base.params={ weeks:4 };
   else if(type==='freshDays') base.params={ days:[2,3,4] };
   else if(type==='effortDays') base.params={ effort:3, days:[3,4] };
+  else if(type==='perWeek') base.params={ max:2 };
+  else if(type==='courseDepEffort') base.params={ course:'haupt', effortMax:2 };
   rules.push(base); saveAll(); renderRules();
 }
 function delRule(id){ const r=rules.find(x=>x.id===id); if(!confirm('Regel „'+RULE_LABELS[r.type]+'" wirklich löschen?')) return; rules=rules.filter(x=>x.id!==id); saveAll(); renderRules(); }
