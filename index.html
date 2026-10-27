@@ -899,3 +899,19 @@ function importBackup(input){
   } catch(e){ alert('Datei konnte nicht gelesen werden.'); } };
   rd.readAsText(f);
 }
+function resetAll(){ if(confirm('Wirklich ALLE Daten löschen und auf Standard zurücksetzen?')){ localStorage.removeItem('mp_cats'); localStorage.removeItem('mp_dishes'); localStorage.removeItem('mp_rules'); localStorage.removeItem('mp_plan'); loadAll(); render(); } }
+
+loadAll();
+render();
+</script>
+<script>
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      reg.addEventListener('updatefound', ()=>{ const nw = reg.installing; if(nw) nw.addEventListener('statechange', ()=>{ if(nw.state==='installed' && navigator.serviceWorker.controller){ nw.postMessage({type:'SKIP_WAITING'}); } }); });
+    });
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(!refreshing){ refreshing = true; location.reload(); } });
+  }
+</script>
+</body>
+</html>
