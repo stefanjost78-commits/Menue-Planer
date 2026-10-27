@@ -4,11 +4,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Menü Planer</title>
-<meta name="theme-color" content="#2e7d32" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<link rel="manifest" href="manifest.webmanifest" />
-<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<title>Menü Planer v1.1</title>
 <style>
   :root { font-family: system-ui, sans-serif; background:#f4f6f8; color:#1b2733; margin:0; }
   * { box-sizing:border-box; }
@@ -73,7 +69,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.11</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.12</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -88,7 +84,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.11';
+const VERSION = '1.4.12';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -339,7 +335,8 @@ const LB_NAMES = {
 };
 LB_NAMES['Würstchen mit Pellkartoffeln & gemischtem Salat'] = 'Wërschtercher mat gekachte Gromperen a gemëschter Zalot';
 // Regeltypen: catWeek (Kategorie n× pro Woche), monthly (Monatsgericht max n×/Monat),
-// minGap (min. Abstand in Wochen), freshDays (frische Gerichte nur an Tagen X), effortDays (Aufwand n bevorzugt an Tagen X)
+// minGap (min. Abstand in Wochen), freshDays (frische Gerichte nur an Tagen X), effortDays (Aufwand n bevorzugt an Tagen X),
+// dishDay (festes Gericht an festen Wochentagen)
 const DEFAULT_RULES = [
   { id:'r1', course:'haupt', type:'catWeek',  params:{ cat:'nudeln', min:1, max:1 } },
   { id:'r2', course:'haupt', type:'catWeek',  params:{ cat:'rind', min:1, max:1 } },
@@ -360,11 +357,13 @@ const DEFAULT_RULES = [
   { id:'r16', course:'vorspeise', type:'freshDays', params:{ days:[2,3,4] } },
   { id:'r17', course:'vorspeise', type:'perWeek', params:{ max:2 } },
   { id:'r18', course:'vorspeise', type:'courseDepEffort', params:{ course:'haupt', effortMax:2 } },
+  { id:'r19', course:'suppe', type:'dishDay', params:{ name:'Gemüsesuppe', days:[4] } },
 ];
 const RULE_LABELS = {
   catWeek: 'Kategorie pro Woche', monthly: 'Monatsgericht (⭐) max. …/Monat',
   minGap: 'Mindestabstand gleiche Gerichte (Wochen)', freshDays: 'Frische Gerichte (🐟) nur an Tagen', effortDays: 'Aufwendige Gerichte bevorzugt an Tagen',
-  perWeek: 'Max. Gerichte pro Woche', courseDepEffort: 'Nur an Tagen mit einfachem Hauptgericht'
+  perWeek: 'Max. Gerichte pro Woche', courseDepEffort: 'Nur an Tagen mit einfachem Hauptgericht',
+  dishDay: 'Festes Gericht an Wochentagen'
 };
 
 // ---------- Laden / Speichern ----------
@@ -379,6 +378,13 @@ function loadAll(){
     let added = false;
     for(const dr of DEFAULT_RULES) if(!rules.some(r=>r.id===dr.id)){ rules.push(dr); added = true; }
     localStorage.setItem('mp_rules_149','1');
+    if(added) saveAll();
+  }
+  // v1.4.12: Regel „Jeden Freitag Gemüsesuppe" (r19) einmalig ergänzen
+  if(!localStorage.getItem('mp_rules_1412')){
+    let added = false;
+    for(const dr of DEFAULT_RULES) if(!rules.some(r=>r.id===dr.id)){ rules.push(dr); added = true; }
+    localStorage.setItem('mp_rules_1412','1');
     if(added) saveAll();
   }
   plan = load('mp_plan', null);
@@ -464,7 +470,10 @@ function generatePlan(){
           s += ((Math.abs(d.id)*31 + w*17 + day*7) % 100)/1000;          // kleine Streuung, damit Tage/Gerichte variieren
           return { d, s };
         }).sort((a,b)=>b.s-a.s);
-        const best = scored[0];
+        // Festes Gericht an festen Wochentagen (dishDay): überschreibt alle anderen Regeln
+        let forced = null;
+        for(const r of rc){ const p=r.params; if(r.type==='dishDay' && p.days.includes(day)){ const fd = cd.find(d=>d.name===p.name); if(fd){ forced = fd; break; } } }
+        const best = forced ? { d:forced } : scored[0];
         if(best){ placedInWeek.push({ d:best.d, day }); lastUsed[best.d.id] = idx;
           if(best.d.monthly){ const m=Math.floor(w/4.34); monthCount[best.d.id]=monthCount[best.d.id]||{}; monthCount[best.d.id][m]=true; } }
       }
@@ -715,6 +724,8 @@ function ruleRow(r){
   else if(r.type==='perWeek') params = `<label>max. pro Woche</label><input type="number" value="${p.max}" onchange="updRuleNum('${r.id}','max',this.value)">`;
   else if(r.type==='courseDepEffort') params = `<label>Nur wenn</label><select onchange="updRule('${r.id}','course',this.value)">${Object.keys(COURSES).map(k=>`<option value="${k}" ${p.course===k?'selected':''}>${COURSES[k]}</option>`).join('')}</select>
     <label>Aufwand max.</label><select onchange="updRuleNum('${r.id}','effortMax',this.value)"><option value="1" ${p.effortMax==1?'selected':''}>wenig</option><option value="2" ${p.effortMax==2?'selected':''}>mittel</option></select>`;
+  else if(r.type==='dishDay') params = `<label>Gericht</label><select onchange="updRule('${r.id}','name',this.value)">${dishes.filter(x=>x.course===r.course && !x.archived).map(x=>`<option value="${esc(x.name)}" ${p.name===x.name?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
+    <label>Tage (Mo–Fr):</label>${weekdaysPicker('wd-'+r.id, p.days)} <button class="btn secondary small" onclick="readDays('${r.id}','dishDay')">OK</button>`;
   return `<div class="rule"><div class="rtop"><span class="rlabel">${RULE_LABELS[r.type]}</span>
     <button class="iconbtn" title="Löschen" onclick="delRule('${r.id}')">🗑</button></div><div class="params">${params}</div></div>`;
 }
@@ -731,6 +742,7 @@ function addRule(course){
   else if(type==='effortDays') base.params={ effort:3, days:[3,4] };
   else if(type==='perWeek') base.params={ max:2 };
   else if(type==='courseDepEffort') base.params={ course:'haupt', effortMax:2 };
+  else if(type==='dishDay') base.params={ name:(dishes.filter(x=>x.course===course && !x.archived)[0]||{}).name||'', days:[4] };
   rules.push(base); saveAll(); renderRules();
 }
 function delRule(id){ const r=rules.find(x=>x.id===id); if(!confirm('Regel „'+RULE_LABELS[r.type]+'" wirklich löschen?')) return; rules=rules.filter(x=>x.id!==id); saveAll(); renderRules(); }
@@ -775,18 +787,13 @@ loadAll();
 render();
 </script>
 <script>
-(function(){
-  if(!('serviceWorker' in navigator)) return;
-  { const v=document.getElementById('ver'); if(v) v.textContent='v'+VERSION; }
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(refreshing) return; refreshing = true; location.reload(); });
-  navigator.serviceWorker.register('sw.js').then(reg=>{
-    reg.addEventListener('updatefound', ()=>{
-      const nw = reg.installing;
-      if(nw) nw.addEventListener('statechange', ()=>{ if(nw.state==='installed' && navigator.serviceWorker.controller) nw.postMessage('SKIP_WAITING'); });
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      reg.addEventListener('updatefound', ()=>{ const nw = reg.installing; if(nw) nw.addEventListener('statechange', ()=>{ if(nw.state==='installed' && navigator.serviceWorker.controller){ nw.postMessage({type:'SKIP_WAITING'}); } }); });
     });
-  }).catch(()=>{});
-})();
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(!refreshing){ refreshing = true; location.reload(); } });
+  }
 </script>
 </body>
 </html>
