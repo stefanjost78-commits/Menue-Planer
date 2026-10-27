@@ -75,7 +75,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.12</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.13</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -90,7 +90,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.12';
+const VERSION = '1.4.13';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -364,12 +364,14 @@ const DEFAULT_RULES = [
   { id:'r17', course:'vorspeise', type:'perWeek', params:{ max:2 } },
   { id:'r18', course:'vorspeise', type:'courseDepEffort', params:{ course:'haupt', effortMax:2 } },
   { id:'r19', course:'suppe', type:'dishDay', params:{ name:'Gemüsesuppe', days:[4] } },
+  { id:'r20', course:'suppe', type:'monthlyMust', params:{} },
 ];
 const RULE_LABELS = {
   catWeek: 'Kategorie pro Woche', monthly: 'Monatsgericht (⭐) max. …/Monat',
   minGap: 'Mindestabstand gleiche Gerichte (Wochen)', freshDays: 'Frische Gerichte (🐟) nur an Tagen', effortDays: 'Aufwendige Gerichte bevorzugt an Tagen',
   perWeek: 'Max. Gerichte pro Woche', courseDepEffort: 'Nur an Tagen mit einfachem Hauptgericht',
-  dishDay: 'Festes Gericht an Wochentagen'
+  dishDay: 'Festes Gericht an Wochentagen',
+  monthlyMust: '⭐-Gerichte: jedes mind. 1× pro Monat (Pflicht)'
 };
 
 // ---------- Laden / Speichern ----------
@@ -391,6 +393,13 @@ function loadAll(){
     let added = false;
     for(const dr of DEFAULT_RULES) if(!rules.some(r=>r.id===dr.id)){ rules.push(dr); added = true; }
     localStorage.setItem('mp_rules_1412','1');
+    if(added) saveAll();
+  }
+  // v1.4.13: Regel „⭐-Suppen mindestens 1× pro Monat" (r20) einmalig ergänzen
+  if(!localStorage.getItem('mp_rules_1413')){
+    let added = false;
+    for(const dr of DEFAULT_RULES) if(!rules.some(r=>r.id===dr.id)){ rules.push(dr); added = true; }
+    localStorage.setItem('mp_rules_1413','1');
     if(added) saveAll();
   }
   plan = load('mp_plan', null);
@@ -435,7 +444,14 @@ function generatePlan(){
       let placedInWeek = [];
       for(let day=0; day<5; day++){
         const idx = w*5+day;
-        const cands = cd.filter(d=>{
+        // monthlyMust: ⭐-Gerichte, die diesen Monat noch nicht drankamen und deren Zielwoche erreicht ist, werden bevorzugt erzwungen
+        let dueIds = null;
+        if(rc.some(r=>r.type==='monthlyMust')){
+          const m = Math.floor(w/4.34);
+          const wkInMonth = Math.min(w - Math.floor(m*4.34), 3);
+          dueIds = new Set(cd.filter(d=>d.monthly && !((monthCount[d.id]||{})[m]) && wkInMonth >= Math.abs(d.id)%4).map(d=>d.id));
+        }
+        const candsAll = cd.filter(d=>{
           for(const r of rc){
             const p = r.params;
             if(r.type==='catWeek' && d.cats.includes(p.cat)){
@@ -454,6 +470,9 @@ function generatePlan(){
           }
           return true;
         });
+        // Bei fälligen Pflicht-⭐-Gerichten: Auswahl darauf beschränken (Fallback, falls durch andere Regeln blockiert)
+        let cands = candsAll;
+        if(dueIds && dueIds.size){ const dc = candsAll.filter(d=>dueIds.has(d.id)); if(dc.length) cands = dc; }
         // Aufwand-Präferenz als Bewertung
         const scored = cands.map(d=>{
           let s = 0;
@@ -749,6 +768,7 @@ function addRule(course){
   else if(type==='perWeek') base.params={ max:2 };
   else if(type==='courseDepEffort') base.params={ course:'haupt', effortMax:2 };
   else if(type==='dishDay') base.params={ name:(dishes.filter(x=>x.course===course && !x.archived)[0]||{}).name||'', days:[4] };
+  else if(type==='monthlyMust') base.params={};
   rules.push(base); saveAll(); renderRules();
 }
 function delRule(id){ const r=rules.find(x=>x.id===id); if(!confirm('Regel „'+RULE_LABELS[r.type]+'" wirklich löschen?')) return; rules=rules.filter(x=>x.id!==id); saveAll(); renderRules(); }
