@@ -42,6 +42,10 @@
   .day .dname { width:3.4em; font-weight:700; color:#2e7d32; flex:none; font-size:.85rem; }
   .day .ddish { flex:1; font-size:.92rem; }
   .day .dsub { font-size:.72rem; color:#78909c; }
+  .daycard { display:flex; gap:8px; padding:8px 10px; border-radius:8px; background:#fff; margin-bottom:6px; box-shadow:0 1px 2px rgba(0,0,0,.06); page-break-inside:avoid; }
+  .daycard .dname { width:4.6em; flex:none; font-weight:700; color:#2e7d32; font-size:.85rem; padding-top:1px; }
+  .dline { font-size:.9rem; padding:1px 0; display:flex; gap:6px; }
+  .dline .dic { flex:none; width:1.3em; text-align:center; }
   .hint { font-size:.8rem; color:#78909c; margin:4px 0 10px; }
   .empty { text-align:center; color:#90a4ae; padding:20px 8px; font-size:.95rem; }
   .legend { font-size:.78rem; color:#546e7a; margin-top:8px; }
@@ -69,7 +73,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.4</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.5</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -84,7 +88,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.4';
+const VERSION = '1.4.5';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -495,10 +499,14 @@ function delCat(i){ const c=cats[i]; const used=dishes.filter(d=>d.cats.includes
   cats.splice(i,1); dishes.forEach(d=>d.cats=d.cats.filter(x=>x!==c.id)); saveAll(); renderDishes(currentDishCourse()); }
 
 // ---------- Tab: Plan ----------
+function getDish(course, w, day){ const pc = plan && plan.find(p=>p.course===course); return pc ? pc.days[w*5+day] : null; }
 function renderPlan(){
+  const dn = planLang==='lb'?DAYNAMES_LB:DAYNAMES;
+  const dnShort = (i)=> dn[i].slice(0, planLang==='lb'?3:2);
+  const ICONS = { suppe:'🍲', vorspeise:'🥗', haupt:'🍽️' };
   app.innerHTML = `
   <div class="card noprint">
-    <h2>🗓️ Menüplan – 3 Monate (13 Wochen)</h2>
+    <h2>🗓️ Wochenplan – 3 Monate (13 Wochen)</h2>
     <div class="hint">Der Plan wählt ausschließlich aus deinen eigenen Gerichten. Regeln siehe Tab „Regeln".</div>
     <div class="actions">
       <button class="btn" onclick="generatePlan()">Plan neu erstellen</button>
@@ -510,24 +518,22 @@ function renderPlan(){
       <button class="btn secondary" onclick="window.print()">🖨️ Ausdrucken</button>
     </div>
   </div>
-  ${!plan ? '<div class="empty">Noch kein Plan erstellt.</div>' : plan.map((pc,ci)=>{
-    const dn = planLang==='lb'?DAYNAMES_LB:DAYNAMES;
-    return `
-    <div class="card" lang="${planLang}">
-      <h2 style="color:#2e7d32">${planLang==='lb'?COURSES_LB[pc.course]:(COURSES[pc.course]+(pc.course!=='haupt'?'':''))}</h2>
-      ${Array.from({length:13},(_,w)=>`
-      <div>
-        <h3>${planLang==='lb'?'Woch':'Woche'} ${w+1}</h3>
-        ${DAYNAMES.map((_,day)=>{
-          const d = pc.days[w*5+day];
-          return `<div class="day"><div class="dname">${dn[day].slice(0, planLang==='lb'?3:2)}</div>
-            <div><div class="ddish">${d?esc(d.name):'—'}</div>
-            <div class="dsub">${d?d.cats.map(id=>{const c=cats.find(x=>x.id===id);return c?c.icon+' '+(planLang==='lb'&&c.label==='Vegetarisch'?'Vegetaresch':c.label):''}).join(' · '):''}</div></div></div>`;
-        }).join('')}
-      </div>`).join('')}
-    </div>`;
-  }).join('')}
-  ${plan?'<div class="legend noprint">Tipp: Leere Tage bedeuten, dass die Regeln kein passendes Gericht zulassen – Gerichte ergänzen oder Regeln anpassen.</div>':''}`;
+  ${!plan ? '<div class="empty">Noch kein Plan erstellt.</div>' : Array.from({length:13},(_,w)=>`
+    <div class="card">
+      <h2 style="color:#2e7d32">${planLang==='lb'?'Woch':'Woche'} ${w+1}</h2>
+      ${DAYNAMES.map((_,day)=>{
+        const s = getDish('suppe',w,day), v = getDish('vorspeise',w,day), h = getDish('haupt',w,day);
+        return `<div class="daycard">
+          <div class="dname">${dnShort(day)}</div>
+          <div style="flex:1">
+            <div class="dline"><span class="dic">${ICONS.suppe}</span><span>${s?esc(s.name):'—'}</span></div>
+            <div class="dline"><span class="dic">${ICONS.vorspeise}</span><span>${v?esc(v.name):'—'}</span></div>
+            <div class="dline"><span class="dic">${ICONS.haupt}</span><span>${h?esc(h.name):'—'}</span></div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`).join('')}
+  ${plan?'<div class="legend noprint">Tipp: Leere Stellen bedeuten, dass die Regeln kein passendes Gericht zulassen – Gerichte ergänzen oder Regeln anpassen. Mit ✏️ kannst du einzelne Wochen nicht ändern – der Plan wird immer komplett neu erstellt.</div>':''}`;
 }
 function setLang(l){ planLang=l; saveAll(); renderPlan(); }
 function clearPlan(){ plan=null; saveAll(); renderPlan(); }
