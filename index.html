@@ -68,7 +68,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.1</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.2</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -82,7 +82,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.1';
+const VERSION = '1.4.2';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -360,7 +360,7 @@ function syncName(){ const el = document.getElementById('dishName'); if(el) form
 function setFlag(key){ syncName(); form[key] = !form[key]; renderDishes(currentDishCourse()); }
 function setEffort(e){ syncName(); form.effort = e; renderDishes(currentDishCourse()); }
 function renderDishes(course){
-  const list = dishes.filter(d=>d.course===course);
+  const list = dishes.filter(d=>d.course===course && !d.archived).sort((a,b)=>a.name.localeCompare(b.name,'de'));
   const isEdit = editId!==null;
   app.innerHTML = `
   <div class="card">
@@ -431,7 +431,7 @@ function archiveDish(id){
 function restoreDish(id){ const d=dishes.find(x=>x.id===id); d.archived=false; saveAll(); renderArchiv(); }
 function editNote(id){ const d=dishes.find(x=>x.id===id); const note=prompt('Bemerkung für „'+d.name+'":', d.note||''); if(note===null) return; d.note=note.trim(); saveAll(); renderArchiv(); }
 function renderArchiv(){
-  const arch = dishes.filter(d=>d.archived);
+  const arch = dishes.filter(d=>d.archived).sort((a,b)=>a.name.localeCompare(b.name,'de'));
   const section = (course)=>arch.filter(d=>d.course===course).map(d=>`
       <div class="dish">
         <div style="flex:1">
