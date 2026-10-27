@@ -78,7 +78,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.16</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.17</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -93,7 +93,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.16';
+const VERSION = '1.4.17';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -500,7 +500,13 @@ function generatePlan(){
         const scored = cands.map(d=>{
           let s = 0;
           for(const r of rc){ if(r.type==='effortDays' && d.effort===r.params.effort && r.params.days.includes(day)) s += 2;
-            if(r.type==='effortDays' && d.effort===r.params.effort && !r.params.days.includes(day)) s -= 2; }
+            if(r.type==='effortDays' && d.effort===r.params.effort && !r.params.days.includes(day)) s -= 2;
+            // Kategorie-Mindestmenge aktiv ansteuern (z. B. „Huhn mind. 1× pro Woche")
+            if(r.type==='catWeek' && r.params.min>0 && d.cats.includes(r.params.cat)){
+              const used = placedInWeek.filter(x=>x && x.d.cats.includes(r.params.cat)).length;
+              if(used < r.params.min) s += 3;
+            }
+          }
           if(placedInWeek.some(p=>p.d.id===d.id)) s -= 5;               // nicht zweimal in derselben Woche
           s += Math.min((lastUsed[d.id]===undefined?999:(idx-lastUsed[d.id]))/7, 6)/6;  // lange nicht verwendet = besser
           if(d.monthly){
@@ -541,10 +547,15 @@ function checkPlanConflicts(out, N_WEEKS){
   for(const o of out){
     const c = o.course, days = o.days;
     const rc = rules.filter(r=>r.course===c);
-    // 1) Leere Tage: kein Gericht möglich
-    const empt = [];
-    days.forEach((d,i)=>{ if(!d) empt.push('Woche '+(Math.floor(i/5)+1)+', '+DAYNAMES[i%5]); });
-    if(empt.length) warnings.push(COURSES[c]+': kein Gericht möglich am '+empt.slice(0,8).join(', ')+(empt.length>8?' …':'')+' – zu wenige Gerichte oder Regeln zu streng.');
+    // 1) Zu wenige Gerichte platziert („max. pro Woche"-Regeln erzeugen bewusst leere Tage – kein Konflikt)
+    const perWeekRule = rc.find(r=>r.type==='perWeek');
+    const quota = perWeekRule ? perWeekRule.params.max : 5;
+    let shortWeeks = 0, missingTotal = 0;
+    for(let w=0; w<N_WEEKS; w++){
+      const placedCnt = [0,1,2,3,4].filter(day=>days[w*5+day]).length;
+      if(placedCnt < quota){ shortWeeks++; missingTotal += quota - placedCnt; }
+    }
+    if(shortWeeks) warnings.push(COURSES[c]+': in '+shortWeeks+' Woche(n) konnten zu wenige Gerichte platziert werden ('+missingTotal+' Tag(e) mehr leer als vorgesehen) – zu wenige Gerichte oder Regeln zu streng.');
     // 2) Festes Gericht an festen Tagen nicht eingehalten
     for(const r of rc) if(r.type==='dishDay'){
       let miss = 0;
