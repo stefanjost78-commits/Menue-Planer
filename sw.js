@@ -1,4 +1,4 @@
-const CACHE = 'menue-planer-v1.4.3';
+const CACHE = 'menue-planer-v1.4.4';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));

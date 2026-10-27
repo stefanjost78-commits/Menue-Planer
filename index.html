@@ -69,11 +69,12 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.3</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.4.4</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
     <button id="tab-haupt" class="active">Hauptgericht</button>
+    <button id="tab-monatlich">⭐ Monatlich</button>
     <button id="tab-archiv">Nicht mehr</button>
     <button id="tab-plan">Plan</button>
     <button id="tab-regeln">Regeln</button>
@@ -83,7 +84,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.4.3';
+const VERSION = '1.4.4';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -334,7 +335,7 @@ function generatePlan(){
 // ---------- UI-Gerüst ----------
 const app = document.getElementById('app');
 let tab = 'haupt';
-const TABS = ['suppe','vorspeise','haupt','archiv','plan','regeln','sicherung'];
+const TABS = ['suppe','vorspeise','haupt','monatlich','archiv','plan','regeln','sicherung'];
 for(const t of TABS){
   document.getElementById('tab-'+t).onclick = ()=>{ tab=t; editId=null; render(); };
 }
@@ -344,7 +345,8 @@ function syncTab(){
   document.getElementById('tab-'+tab).classList.add('active');
 }
 function render(){ syncTab();
-  if(tab==='archiv') renderArchiv();
+  if(tab==='monatlich') renderMonthly();
+  else if(tab==='archiv') renderArchiv();
   else if(tab==='plan') renderPlan();
   else if(tab==='regeln') renderRules();
   else if(tab==='sicherung') renderBackup();
@@ -455,6 +457,34 @@ function renderArchiv(){
   ${arch.length===0?'<div class="empty">Noch nichts archiviert. In den Listen Suppe / Vorspeise / Hauptgericht auf 📦 tippen, um ein Gericht hierher zu verschieben.</div>':''}`;
 }
 function delArch(id){ const d=dishes.find(x=>x.id===id); if(confirm('„'+d.name+'" endgültig aus dem Archiv löschen?')){ dishes=dishes.filter(x=>x.id!==id); saveAll(); renderArchiv(); } }
+// ---------- Tab: Monatlich (⭐) ----------
+function renderMonthly(){
+  const mon = dishes.filter(d=>d.monthly && !d.archived).sort((a,b)=>a.name.localeCompare(b.name,'de'));
+  const row = (d)=>`
+      <div class="dish">
+        <div style="flex:1">
+          <div class="name">${esc(d.name)}</div>
+          <div class="tags">
+            <span class="tag" style="background:#e8eaf6;color:#3949ab">${COURSES[d.course]}</span>
+            ${d.cats.map(catChip).join('')}
+            ${d.fresh?'<span class="tag" style="background:#e3f2fd;color:#1565c0">🐟 frisch</span>':''}
+            ${d.effort===3?'<span class="tag" style="background:#fbe9e7;color:#bf360c">aufwendig</span>':''}
+          </div>
+        </div>
+        <button class="iconbtn" title="Bearbeiten" onclick="editDish(${d.id})">✏️</button>
+        <button class="iconbtn" title="Auf die Liste „Nicht mehr"" onclick="archiveDish(${d.id})">📦</button>
+        <button class="iconbtn" title="Löschen" onclick="delDish(${d.id})">🗑</button>
+      </div>`;
+  const byCourse = (c)=>mon.filter(d=>d.course===c);
+  app.innerHTML = `
+  <div class="card">
+    <h2>⭐ Einmal pro Monat (${mon.length})</h2>
+    <div class="hint">Alle Suppen, Vorspeisen und Hauptgerichte mit dem ⭐-Kennzeichen auf einen Blick. Der Planer setzt sie automatisch ungefähr einmal pro Monat ein (Regel „Monatsgericht" im Regeln-Tab anpassbar). Verwaltet (⭐ setzen/entfernen) werden sie in ihren eigenen Listen.</div>
+  </div>
+  ${['suppe','vorspeise','haupt'].map(c=>byCourse(c).length?`
+  <div class="card"><h2>${COURSES[c]}e (${byCourse(c).length})</h2>${byCourse(c).map(row).join('')}</div>`:'').join('')}
+  ${mon.length===0?'<div class="empty">Noch keine Monatsgerichte markiert. In den Listen Suppe / Vorspeise / Hauptgericht beim Gericht ✏️ wählen und dort „⭐ 1× pro Monat" einschalten.</div>':''}`;
+}
 function addCat(){ const label = prompt('Name der neuen Kategorie:'); if(!label) return;
   const icon = prompt('Symbol (Emoji) für die Kategorie:', '🍽️')||'🍽️';
   cats.push({ id:'c'+Date.now(), label:label.trim(), icon, color:PALETTE[cats.length%PALETTE.length] }); saveAll(); renderDishes(currentDishCourse()); }
