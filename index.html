@@ -78,7 +78,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.6.0</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.6.1</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -94,7 +94,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.6.0';
+const VERSION = '1.6.1';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -353,7 +353,7 @@ const DEFAULT_RULES = [
   { id:'r12', course:'suppe', type:'monthly',  params:{ max:2 } },
   { id:'r13', course:'suppe', type:'freshDays', params:{ days:[2,3,4] } },
   { id:'r19', course:'suppe', type:'dishDay',  params:{ name:'Gemüsesuppe', days:[4] } },
-  { id:'r20', course:'suppe', type:'monthlyMust', params:{ perWeek:1 } },
+  { id:'r20', course:'suppe', type:'monthlyMust', params:{ perWeek:2 } },
   { id:'r21', course:'suppe', type:'sameVegWeek', params:{ max:1 } },
   // ---- Vorspeisen ----
   { id:'r14', course:'vorspeise', type:'minGap', params:{ weeks:4 } },
@@ -453,6 +453,13 @@ function loadAll(){
     localStorage.setItem('mp_rules_151','1');
     saveAll();
   }
+  // v1.6.1: ⭐-Suppen max. 2/Woche – bei 6+ Sterne-Suppen passt 1/Woche rechnerisch nicht in den Monat
+  if(!localStorage.getItem('mp_rules_160')){
+    const r = rules.find(x=>x.id==='r20' && x.type==='monthlyMust');
+    if(r && (r.params.perWeek||1)===1) r.params.perWeek = 2;
+    localStorage.setItem('mp_rules_160','1');
+    saveAll();
+  }
   plan = load('mp_plan', null);
   parts = load('mp_parts', DEFAULT_PARTS);
   planLang = load('mp_lang', 'de');
@@ -523,42 +530,52 @@ function generatePlan(){
     const placed = Array(N_WEEKS*5).fill(null);
     for(let w=0; w<N_WEEKS; w++){
       let placedInWeek = [];
-      for(let day=0; day<5; day++){
-        const idx = w*5+day;
-        // monthlyMust: ⭐-Gerichte, die diesen Monat noch nicht drankamen und deren Zielwoche erreicht ist, werden bevorzugt erzwungen
-        let dueIds = null;
-        if(rc.some(r=>r.type==='monthlyMust')){
-          const m = Math.floor(w/4.34);
-          const wkInMonth = Math.min(w - Math.floor(m*4.34), 3);
-          dueIds = new Set(pool.filter(d=>d.monthly && !((monthCount[d.id]||{})[m]) && wkInMonth >= (starWeek[d.id] ?? Math.abs(d.id)%4)).map(d=>d.id));
-        }
-        const candsAll = pool.filter(d=>{
-          for(const r of rc){
-            const p = r.params;
-            if(r.type==='catWeek' && d.cats.includes(p.cat)){
-              const used = placedInWeek.filter(x=>x && x.d.cats.includes(p.cat)).length;
-              if(used >= p.max) return false;
-            }
-            if(r.type==='freshDays' && d.fresh && !p.days.includes(day)) return false;
-            // Pflicht-⭐: nur begrenzt pro Woche (schöne Verteilung übers Monat)
-            if(r.type==='monthlyMust' && d.monthly && placedInWeek.filter(x=>x && x.d.monthly).length >= (r.params.perWeek||1)) return false;
-            if(r.type==='perWeek' && placedInWeek.length >= p.max) return false;
-            if(r.type==='sameVegWeek' && placedInWeek.some(x=>x && sharesVeg(x.d.name, d.name)) && placedInWeek.filter(x=>x && sharesVeg(x.d.name, d.name)).length >= p.max) return false;
-            if(r.type==='courseDepEffort'){ const dep = (allPlaced[p.course]||[])[idx]; if(dep && dep.effort > p.effortMax) return false; }
-            if(r.type==='monthly' && d.monthly){
-              const m = Math.floor(w/4.34);
-              monthCount[d.id] = monthCount[d.id]||{};
-              if(monthCount[d.id][m]) return false;
-            }
-            if(r.type==='minGap' && lastUsed[d.id]!==undefined && (w - Math.floor(lastUsed[d.id]/5)) < p.weeks) return false;
-            // Kombi: kein Protein 2× in derselben Woche
-            if(d.combo && placedInWeek.some(x=>x && x.d.combo && x.d.part && d.part && x.d.part.id===d.part.id)) return false;
+      const takenDays = new Set();
+      const m = Math.floor(w/4.34);
+      const wkInMonth = Math.min(w - Math.floor(m*4.34), 3);
+      // Hartes Regelwerk: darf Gericht d an diesem Tag? (relaxCats: Kategorie-Limits notfalls ignorieren)
+      const okDish = (d, day, idx, relaxCats)=>{
+        for(const r of rc){
+          const p = r.params;
+          if(!relaxCats && r.type==='catWeek' && d.cats.includes(p.cat)){
+            const used = placedInWeek.filter(x=>x && x.d.cats.includes(p.cat)).length;
+            if(used >= p.max) return false;
           }
-          return true;
-        });
-        // Bei fälligen Pflicht-⭐-Gerichten: Auswahl darauf beschränken (Fallback, falls durch andere Regeln blockiert)
-        let cands = candsAll;
-        if(dueIds && dueIds.size){ const dc = candsAll.filter(d=>dueIds.has(d.id)); if(dc.length) cands = dc; }
+          if(r.type==='freshDays' && d.fresh && !p.days.includes(day)) return false;
+          if(r.type==='monthlyMust' && d.monthly && placedInWeek.filter(x=>x && x.d.monthly).length >= (p.perWeek||1)) return false;
+          if(r.type==='perWeek' && placedInWeek.length >= p.max) return false;
+          if(r.type==='sameVegWeek' && placedInWeek.some(x=>x && sharesVeg(x.d.name, d.name)) && placedInWeek.filter(x=>x && sharesVeg(x.d.name, d.name)).length >= p.max) return false;
+          if(r.type==='courseDepEffort'){ const dep = (allPlaced[p.course]||[])[idx]; if(dep && dep.effort > p.effortMax) return false; }
+          if(r.type==='monthly' && d.monthly && (monthCount[d.id]||{})[m]) return false;
+          if(r.type==='minGap' && lastUsed[d.id]!==undefined && (w - Math.floor(lastUsed[d.id]/5)) < p.weeks) return false;
+          if(d.combo && placedInWeek.some(x=>x && x.d.combo && x.d.part && d.part && x.d.part.id===d.part.id)) return false;
+        }
+        return true;
+      };
+      // Pflicht-⭐ (monthlyMust) als Erstes setzen – VOR allen anderen Gerichten,
+      // damit Kombis und Kategorie-Zähler ihnen keine Tage wegnehmen
+      const mmr = rc.find(r=>r.type==='monthlyMust');
+      if(mmr){
+        const forcedDays = new Set();
+        for(const r of rc) if(r.type==='dishDay') (r.params.days||[]).forEach(x=>forcedDays.add(x));
+        let cap = mmr.params.perWeek||1;
+        for(const d of pool.filter(d=>d.monthly && !((monthCount[d.id]||{})[m]) && wkInMonth >= (starWeek[d.id] ?? Math.abs(d.id)%4))){
+          if(cap<=0) break;
+          for(let day=0; day<5; day++){
+            if(takenDays.has(day) || forcedDays.has(day)) continue;
+            const idx = w*5+day;
+            if(!okDish(d, day, idx, false)) continue;
+            placedInWeek.push({ d, day }); takenDays.add(day);
+            lastUsed[d.id] = idx; monthCount[d.id] = monthCount[d.id]||{}; monthCount[d.id][m] = true;
+            cap--; break;
+          }
+        }
+      }
+      for(let day=0; day<5; day++){
+        if(takenDays.has(day)) continue;
+        const idx = w*5+day;
+        let cands = pool.filter(d=>okDish(d, day, idx, false));
+        if(cands.length===0) cands = pool.filter(d=>okDish(d, day, idx, true));   // notfalls Kategorie-Limits lockern: lieber ein Gericht als ein leerer Tag
         // Aufwand-Präferenz als Bewertung
         const scored = cands.map(d=>{
           let s = 0;
@@ -593,12 +610,13 @@ function generatePlan(){
         const best = forced ? { d:forced } : scored[0];
         if(best){
           let bd = best.d, cf = null, cg = null;
-          if(bd.combo){ const cc = composeCombo(bd, placedInWeek, w, rc); if(!cc){ bd = null; } else { bd = cc.d; cf = cc.f; cg = cc.g; } }
+          if(bd.combo){ const cc = composeCombo(bd, placedInWeek, w, rc); if(cc){ bd = cc.d; cf = cc.f; cg = cc.g; } else { const alt = scored.find(x=>!x.d.combo); bd = alt ? alt.d : null; } }
           if(bd){ placedInWeek.push({ d:bd, day, f:cf, g:cg }); lastUsed[bd.id] = idx;
-            if(bd.monthly){ const m=Math.floor(w/4.34); monthCount[bd.id]=monthCount[bd.id]||{}; monthCount[bd.id][m]=true; } }
+            if(bd.monthly){ monthCount[bd.id]=monthCount[bd.id]||{}; monthCount[bd.id][m]=true; } }
         }
       }
-      for(const pe of placedInWeek) placed[w*5+pe.day] = pe.d;    }
+      for(const pe of placedInWeek) placed[w*5+pe.day] = pe.d;
+    }
     allPlaced[c] = placed;
     out.push({ course:c, days:placed });
   }
