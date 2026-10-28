@@ -78,11 +78,12 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.5.1</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.6.0</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
     <button id="tab-haupt" class="active">Hauptgericht</button>
+    <button id="tab-kombis">🧩 Kombis</button>
     <button id="tab-monatlich">⭐ Monatlich</button>
     <button id="tab-archiv">Nicht mehr</button>
     <button id="tab-plan">Plan</button>
@@ -93,7 +94,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.5.1';
+const VERSION = '1.6.0';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -393,9 +394,27 @@ const RULE_LABELS = {
   sameVegWeek: 'Gleiches Gemüse (im Namen): max. …× pro Woche'
 };
 
+// ---------- Kombi-Bausteine (Protein + Feculon + Gemüse) ----------
+const P = (name,cats,lb)=>({ name, nameLb:lb||'', cats:cats||[] });
+const DEFAULT_PARTS = {
+  protein: [
+    P('Rindergeschnetzeltes',['rind']), P('Kalbsgeschnetzeltes',['rind']),
+    P('Hühnergeschnetzeltes',['huhn']), P('Hühnerfilet',['huhn']),
+    P('Fischfilet',['fisch']), P('Lachsfilet',['fisch']),
+    P('Omelette',['veg'])
+  ].map((p,i)=>({ id:1000+i, ...p })),
+  feculon: [
+    P('Reis'), P('Kartoffelpüree',['kartoffeln']), P('Kartoffeln',['kartoffeln']),
+    P('Nudeln',['nudeln']), P('Couscous'), P('Quinoa'), P('Polenta')
+  ].map((p,i)=>({ id:2000+i, ...p })),
+  gemuese: [
+    P('Brokkoli'), P('Karotten'), P('Erbsen & Karotten'), P('Grüne Bohnen'),
+    P('Blumenkohl'), P('Zucchini'), P('Spinat'), P('Kürbis'), P('Mais'), P('Paprika')
+  ].map((p,i)=>({ id:3000+i, ...p }))
+};
 // ---------- Laden / Speichern ----------
-let cats, dishes, rules, plan, planLang = 'de';
-function stateToObj(){ return { version:VERSION, cats, dishes, rules }; }
+let cats, dishes, rules, plan, parts, planLang = 'de';
+function stateToObj(){ return { version:VERSION, cats, dishes, rules, parts }; }
 function loadAll(){
   cats = load('mp_cats', DEFAULT_CATS);
   dishes = load('mp_dishes', STARTER_DISHES);
@@ -435,6 +454,7 @@ function loadAll(){
     saveAll();
   }
   plan = load('mp_plan', null);
+  parts = load('mp_parts', DEFAULT_PARTS);
   planLang = load('mp_lang', 'de');
 }
 function load(k, fb){ try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fb; } catch(e){ return fb; } }
@@ -442,6 +462,7 @@ function saveAll(){
   localStorage.setItem('mp_cats', JSON.stringify(cats));
   localStorage.setItem('mp_dishes', JSON.stringify(dishes));
   localStorage.setItem('mp_rules', JSON.stringify(rules));
+  localStorage.setItem('mp_parts', JSON.stringify(parts));
   if(plan) localStorage.setItem('mp_plan', JSON.stringify(plan)); else localStorage.removeItem('mp_plan');
   localStorage.setItem('mp_lang', JSON.stringify(planLang));
 }
@@ -460,6 +481,27 @@ function startSpeech(targetId, cb){
 }
 
 // ---------- Planner (regelbasiert, erfindet NIE neue Gerichte) ----------
+// Kombi-Gericht zusammensetzen: Protein + Beilage + Gemüse, keine Dopplung in der Woche, Kategorien respektieren
+function composeCombo(pd, placedInWeek, w, rc){
+  const prot = pd.part;
+  const okCats = (item)=>{
+    for(const r of rc){ if(r.type==='catWeek' && (item.cats||[]).includes(r.params.cat)){
+      const used = placedInWeek.filter(x=>x && x.d.cats.includes(r.params.cat)).length;
+      if(used >= r.params.max) return false;
+    } }
+    return true;
+  };
+  const fecs = (parts.feculon||[]).filter(f=>okCats(f) && !placedInWeek.some(x=>x && x.f && x.f.id===f.id));
+  const gems = (parts.gemuese||[]).filter(g=>okCats(g) && !placedInWeek.some(x=>x && x.g && x.g.id===g.id));
+  if(!fecs.length || !gems.length) return null;
+  const pick = (arr, salt)=> arr[(Math.abs(prot.id)*7 + w*13 + salt*29) % arr.length];
+  const f = pick(fecs, 1), g = pick(gems, 2);
+  const lbN = (x)=> x.nameLb || '';
+  const nameLb = (lbN(prot) && lbN(f) && lbN(g)) ? lbN(prot)+' mat '+lbN(f)+' an '+lbN(g) : '';
+  return { d:{ id: pd.id, course:'haupt', combo:true, part:prot,
+    name: prot.name + ' mit ' + f.name + ' & ' + g.name, nameLb,
+    cats: [...new Set([...(prot.cats||[]), ...(f.cats||[])])], monthly:false, fresh:false, effort: prot.effort||2 }, f, g };
+}
 function generatePlan(){
   const out = [];
   const N_WEEKS = 13;
@@ -468,7 +510,11 @@ function generatePlan(){
   const PLANNER_ORDER = ['suppe','haupt','vorspeise'];
   for(const c of PLANNER_ORDER){
     const cd = dishes.filter(d=>d.course===c && !d.archived);
-    if(cd.length===0) continue;
+    if(cd.length===0 && !(c==='haupt' && (parts.protein||[]).length)) continue;
+    // Kombi-Gerichte (Protein + Beilage + Gemüse) nur bei Hauptgerichten
+    let comboPool = [];
+    if(c==='haupt') for(const p of (parts.protein||[])) comboPool.push({ id:'k'+p.id, course:'haupt', combo:true, part:p, name:p.name, cats:[...(p.cats||[])], monthly:false, fresh:false, effort:p.effort||2 });
+    const pool = cd.concat(comboPool);
     const rc = rules.filter(r=>r.course===c);
     const lastUsed = {}, monthCount = {};
     // ⭐-Gerichte gleichmäßig Zielwochen zuweisen (0–3, gestaffelt) statt zufällig – schöne Verteilung übers Monat
@@ -484,9 +530,9 @@ function generatePlan(){
         if(rc.some(r=>r.type==='monthlyMust')){
           const m = Math.floor(w/4.34);
           const wkInMonth = Math.min(w - Math.floor(m*4.34), 3);
-          dueIds = new Set(cd.filter(d=>d.monthly && !((monthCount[d.id]||{})[m]) && wkInMonth >= (starWeek[d.id] ?? Math.abs(d.id)%4)).map(d=>d.id));
+          dueIds = new Set(pool.filter(d=>d.monthly && !((monthCount[d.id]||{})[m]) && wkInMonth >= (starWeek[d.id] ?? Math.abs(d.id)%4)).map(d=>d.id));
         }
-        const candsAll = cd.filter(d=>{
+        const candsAll = pool.filter(d=>{
           for(const r of rc){
             const p = r.params;
             if(r.type==='catWeek' && d.cats.includes(p.cat)){
@@ -505,6 +551,8 @@ function generatePlan(){
               if(monthCount[d.id][m]) return false;
             }
             if(r.type==='minGap' && lastUsed[d.id]!==undefined && (w - Math.floor(lastUsed[d.id]/5)) < p.weeks) return false;
+            // Kombi: kein Protein 2× in derselben Woche
+            if(d.combo && placedInWeek.some(x=>x && x.d.combo && x.d.part && d.part && x.d.part.id===d.part.id)) return false;
           }
           return true;
         });
@@ -543,11 +591,14 @@ function generatePlan(){
         let forced = null;
         for(const r of rc){ const p=r.params; if(r.type==='dishDay' && p.days.includes(day)){ const fd = cd.find(d=>d.name===p.name); if(fd){ forced = fd; break; } } }
         const best = forced ? { d:forced } : scored[0];
-        if(best){ placedInWeek.push({ d:best.d, day }); lastUsed[best.d.id] = idx;
-          if(best.d.monthly){ const m=Math.floor(w/4.34); monthCount[best.d.id]=monthCount[best.d.id]||{}; monthCount[best.d.id][m]=true; } }
+        if(best){
+          let bd = best.d, cf = null, cg = null;
+          if(bd.combo){ const cc = composeCombo(bd, placedInWeek, w, rc); if(!cc){ bd = null; } else { bd = cc.d; cf = cc.f; cg = cc.g; } }
+          if(bd){ placedInWeek.push({ d:bd, day, f:cf, g:cg }); lastUsed[bd.id] = idx;
+            if(bd.monthly){ const m=Math.floor(w/4.34); monthCount[bd.id]=monthCount[bd.id]||{}; monthCount[bd.id][m]=true; } }
+        }
       }
-      for(const pe of placedInWeek) placed[w*5+pe.day] = pe.d;
-    }
+      for(const pe of placedInWeek) placed[w*5+pe.day] = pe.d;    }
     allPlaced[c] = placed;
     out.push({ course:c, days:placed });
   }
@@ -613,7 +664,7 @@ function showWarnings(warnings){
 // ---------- UI-Gerüst ----------
 const app = document.getElementById('app');
 let tab = 'haupt';
-const TABS = ['suppe','vorspeise','haupt','monatlich','archiv','plan','regeln','sicherung'];
+const TABS = ['suppe','vorspeise','haupt','kombis','monatlich','archiv','plan','regeln','sicherung'];
 for(const t of TABS){
   document.getElementById('tab-'+t).onclick = ()=>{ tab=t; editId=null; render(); };
 }
@@ -624,6 +675,7 @@ function syncTab(){
 }
 function render(){ syncTab();
   if(tab==='monatlich') renderMonthly();
+  else if(tab==='kombis') renderKombis();
   else if(tab==='archiv') renderArchiv();
   else if(tab==='plan') renderPlan();
   else if(tab==='regeln') renderRules();
@@ -703,6 +755,31 @@ function saveDish(course){
 }
 function editDish(id){ const d = dishes.find(x=>x.id===id); editId=id; form={ name:d.name, nameLb:d.nameLb||'', cats:[...d.cats], monthly:d.monthly, fresh:d.fresh, effort:d.effort }; renderDishes(d.course); window.scrollTo({top:0,behavior:'smooth'}); }
 function delDish(id){ const d=dishes.find(x=>x.id===id); if(confirm('„'+d.name+'" wirklich endgültig löschen?')){ dishes=dishes.filter(x=>x.id!==id); saveAll(); renderDishes(currentDishCourse()); } }
+// ---------- Tab: Kombis (Protein + Feculon + Gemüse) ----------
+const PART_KINDS = { protein:'🥩 Proteine', feculon:'🍚 Beilagen (Feculon)', gemuese:'🥦 Gemüse' };
+function renderKombis(){
+  const row = (k)=> (parts[k]||[]).map(p=>`
+    <div class="dish">
+      <div style="flex:1">
+        <div class="name">${esc(p.name)}</div>
+        <div class="chiprow" style="flex-wrap:wrap;gap:6px">${cats.map(c=>`<span class="chip ${p.cats.includes(c.id)?'on':''}" style="${p.cats.includes(c.id)?'background:'+c.color+';border-color:'+c.color:''}" onclick="togglePartCat('${k}',${p.id},'${c.id}')">${c.icon} ${esc(c.label)}</span>`).join('')}</div>
+      </div>
+      <button class="iconbtn" title="Umbenennen" onclick="editPart('${k}',${p.id})">✏️</button>
+      <button class="iconbtn" title="Löschen" onclick="delPart('${k}',${p.id})">🗑</button>
+    </div>`).join('');
+  app.innerHTML = `
+  <div class="card"><h2>🧩 Kombi-Gerichte</h2>
+  <div class="hint">Aus diesen Listen würfelt der Planer freie Hauptgerichte zusammen: <b>Protein + Beilage + Gemüse</b> (z. B. „Hühnergeschnetzeltes mit Reis & Brokkoli"). Das passiert nur für Tage, die durch Komplettgerichte nicht besetzt sind – und nur, wenn es hier Einträge gibt. Regeln werden beachtet: Kategorien zählen gemeinsam (Huhn mit Reis verbraucht Huhn UND Reis), kein Element kommt zweimal in derselben Woche vor. Komplettgerichte (Pizza, Lasagne, Spaghetti …) bleiben im Tab „Hauptgericht".</div></div>
+  ${Object.entries(PART_KINDS).map(([k,label])=>`
+  <div class="card"><h2>${label} (${(parts[k]||[]).length})</h2>
+    <div class="actions"><button class="btn secondary" onclick="addPart('${k}')">＋ Hinzufügen</button></div>
+    ${(parts[k]||[]).length ? row(k) : '<div class="empty">Noch keine Einträge.</div>'}
+  </div>`).join('')}`;
+}
+function addPart(k){ const name = prompt('Name:'); if(!name) return; const lb = prompt('Name op Lëtzebuergesch (facultativ):','')||''; (parts[k]=parts[k]||[]).push({ id:Date.now(), name:name.trim(), nameLb:lb.trim(), cats:[] }); saveAll(); renderKombis(); }
+function editPart(k,id){ const p=(parts[k]||[]).find(x=>x.id===id); const name=prompt('Neuer Name:', p.name); if(name===null) return; const lb=prompt('Name op Lëtzebuergesch (facultativ):', p.nameLb||''); if(lb===null) return; p.name=name.trim(); p.nameLb=lb.trim(); saveAll(); renderKombis(); }
+function togglePartCat(k,id,cid){ const p=(parts[k]||[]).find(x=>x.id===id); p.cats = p.cats.includes(cid) ? p.cats.filter(x=>x!==cid) : [...p.cats,cid]; saveAll(); renderKombis(); }
+function delPart(k,id){ const p=(parts[k]||[]).find(x=>x.id===id); if(confirm('„'+p.name+'" wirklich löschen?')){ parts[k]=parts[k].filter(x=>x.id!==id); saveAll(); renderKombis(); } }
 // ---------- Tab: Nicht mehr (Archiv) ----------
 function archiveDish(id){
   const d = dishes.find(x=>x.id===id);
@@ -908,7 +985,7 @@ function renderBackup(){
   </div>`;
 }
 function exportBackup(){
-  const data = JSON.stringify({ version:VERSION, exported:new Date().toISOString(), cats, dishes, rules, plan }, null, 2);
+  const data = JSON.stringify({ version:VERSION, exported:new Date().toISOString(), cats, dishes, rules, parts, plan }, null, 2);
   try {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([data], {type:'application/json'}));
@@ -921,12 +998,12 @@ function importBackup(input){
   rd.onload = ()=>{ try {
     const d = JSON.parse(rd.result);
     if(!confirm('Sicherung importieren? Aktuelle Daten werden ersetzt.')) return;
-    if(d.cats) cats=d.cats; if(d.dishes) dishes=d.dishes; if(d.rules) rules=d.rules; plan=d.plan||null;
+    if(d.cats) cats=d.cats; if(d.dishes) dishes=d.dishes; if(d.rules) rules=d.rules; if(d.parts) parts=d.parts; plan=d.plan||null;
     saveAll(); alert('Import erfolgreich ✓'); render();
   } catch(e){ alert('Datei konnte nicht gelesen werden.'); } };
   rd.readAsText(f);
 }
-function resetAll(){ if(confirm('Wirklich ALLE Daten löschen und auf Standard zurücksetzen?')){ localStorage.removeItem('mp_cats'); localStorage.removeItem('mp_dishes'); localStorage.removeItem('mp_rules'); localStorage.removeItem('mp_plan'); loadAll(); render(); } }
+function resetAll(){ if(confirm('Wirklich ALLE Daten löschen und auf Standard zurücksetzen?')){ localStorage.removeItem('mp_cats'); localStorage.removeItem('mp_dishes'); localStorage.removeItem('mp_rules'); localStorage.removeItem('mp_parts'); localStorage.removeItem('mp_plan'); loadAll(); render(); } }
 
 loadAll();
 render();
