@@ -78,7 +78,7 @@
 </head>
 <body>
 <header>
-  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.6.1</span></h1>
+  <h1>🍽️ Menü Planer <span class="version" id="ver">v1.6.2</span></h1>
   <nav>
     <button id="tab-suppe">Suppe</button>
     <button id="tab-vorspeise">Vorspeise</button>
@@ -94,7 +94,7 @@
 <main id="app"></main>
 
 <script>
-const VERSION = '1.6.1';
+const VERSION = '1.6.2';
 const COURSES = { suppe:'Suppe', vorspeise:'Vorspeise', haupt:'Hauptgericht' };
 const COURSES_LB = { suppe:'Zopp', vorspeise:'Entrée', haupt:'Haaptplat' };
 const DAYNAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
@@ -419,6 +419,9 @@ function loadAll(){
   cats = load('mp_cats', DEFAULT_CATS);
   dishes = load('mp_dishes', STARTER_DISHES);
   rules = load('mp_rules', DEFAULT_RULES);
+  parts = load('mp_parts', DEFAULT_PARTS);
+  plan = load('mp_plan', null);
+  planLang = load('mp_lang', 'de');
   // Einmalige Übernahme fehlender Standard-Regeln (z. B. Vorspeisen-Regeln ab v1.4.1), falls alte Regeln gespeichert sind
   if(!localStorage.getItem('mp_rules_149')){
     let added = false;
@@ -460,16 +463,13 @@ function loadAll(){
     localStorage.setItem('mp_rules_160','1');
     saveAll();
   }
-  plan = load('mp_plan', null);
-  parts = load('mp_parts', DEFAULT_PARTS);
-  planLang = load('mp_lang', 'de');
 }
 function load(k, fb){ try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fb; } catch(e){ return fb; } }
 function saveAll(){
   localStorage.setItem('mp_cats', JSON.stringify(cats));
   localStorage.setItem('mp_dishes', JSON.stringify(dishes));
   localStorage.setItem('mp_rules', JSON.stringify(rules));
-  localStorage.setItem('mp_parts', JSON.stringify(parts));
+  if(parts) localStorage.setItem('mp_parts', JSON.stringify(parts));
   if(plan) localStorage.setItem('mp_plan', JSON.stringify(plan)); else localStorage.removeItem('mp_plan');
   localStorage.setItem('mp_lang', JSON.stringify(planLang));
 }
